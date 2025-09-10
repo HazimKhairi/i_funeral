@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "506301649242",
+    "project_id": "ifuneral",
+    "storage_bucket": "ifuneral.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:506301649242:android:b025859195361531e8e363",
+        "android_client_info": {
+          "package_name": "com.example.i_funeral"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAeiWYdg7IwYhptpLHEoouZ0vtics8Ebs4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
