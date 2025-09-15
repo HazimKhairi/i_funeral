@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/enums.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart';
+import '../theme/app_colors.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -68,7 +69,6 @@ class _AuthScreenState extends State<AuthScreen> {
       }
 
       if (user != null && mounted) {
-        // Navigate to respective homepage
         final route = user.userType == UserType.waris 
             ? '/waris-home' 
             : '/staff-home';
@@ -83,7 +83,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -99,23 +99,13 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: AppColors.primaryGreen,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             children: [
-              const SizedBox(height: 20),
-              
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(
-                  Icons.arrow_back_ios_rounded,
-                  color: Colors.white,
-                ),
-              ),
-              
-              const SizedBox(height: 20),
+              const SizedBox(height: 40),
               
               _buildHeader(),
               
@@ -138,8 +128,9 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildHeader() {
-    final userTypeTitle = _userType == UserType.waris ? 'Waris' : 'Staff';
-    final actionTitle = _isLogin ? 'Log Masuk' : 'Daftar';
+    final userTypeTitle = _userType == UserType.waris ? 'Family Member' : 'Staff Member';
+    final actionTitle = _isLogin ? 'Sign In' : 'Sign Up';
+    final color = _userType == UserType.waris ? AppColors.info : AppColors.accent;
     
     return Column(
       children: [
@@ -147,40 +138,56 @@ class _AuthScreenState extends State<AuthScreen> {
           width: 60,
           height: 60,
           decoration: BoxDecoration(
-            color: _userType == UserType.waris 
-                ? const Color(0xFF4A90E2) 
-                : const Color(0xFF50C878),
+            color: color,
             borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: AppColors.textPrimary,
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.4),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
           child: Icon(
             _userType == UserType.waris 
                 ? Icons.family_restroom_rounded 
                 : Icons.work_rounded,
             size: 30,
-            color: Colors.white,
+            color: AppColors.textPrimary,
           ),
         ),
         
         const SizedBox(height: 20),
         
         Text(
-          '$actionTitle $userTypeTitle',
+          '$actionTitle as $userTypeTitle',
           style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppColors.textPrimary,
+            shadows: [
+              Shadow(
+                offset: Offset(1, 1),
+                blurRadius: 3,
+                color: Colors.black26,
+              ),
+            ],
           ),
         ),
         
         const SizedBox(height: 8),
         
         Text(
-            _isLogin 
-              ? 'Welcome back! Please log in to your account'
-              : 'Create a new account to use our services',
+          _isLogin 
+              ? 'Welcome back! Please sign in to your account'
+              : 'Create a new account to access our services',
           style: const TextStyle(
             fontSize: 14,
-            color: Color(0xFFB0B0B0),
+            color: AppColors.textSecondary,
           ),
           textAlign: TextAlign.center,
         ),
@@ -189,82 +196,96 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildForm() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        children: [
-          if (!_isLogin) ...[
-            _buildTextField(
-              controller: _nameController,
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            if (!_isLogin) ...[
+              _buildTextField(
+                controller: _nameController,
                 label: 'Full Name',
                 icon: Icons.person_rounded,
                 validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your full name';
+                  }
+                  return null;
+                },
+              ),
+              
+              const SizedBox(height: 16),
+            ],
+            
+            _buildTextField(
+              controller: _emailController,
+              label: 'Email Address',
+              icon: Icons.email_rounded,
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter your full name';
+                  return 'Please enter your email';
+                }
+                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                  return 'Please enter a valid email address';
                 }
                 return null;
               },
             ),
             
             const SizedBox(height: 16),
-          ],
-          
-          _buildTextField(
-            controller: _emailController,
-            label: 'Email',
-            icon: Icons.email_rounded,
-            keyboardType: TextInputType.emailAddress,
-            validator: (value) {
-                if (value == null || value.isEmpty) {
-                return 'Please enter your email';
-                }
-                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                return 'Please enter a valid email';
-                }
-              return null;
-            },
-          ),
-          
-          const SizedBox(height: 16),
-          
-          _buildTextField(
-            controller: _passwordController,
-            label: 'Password',
-            icon: Icons.lock_rounded,
-            obscureText: _obscurePassword,
-            suffixIcon: IconButton(
-              onPressed: () {
-                setState(() {
-                  _obscurePassword = !_obscurePassword;
-                });
-              },
-              icon: Icon(
-                _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                color: const Color(0xFFB0B0B0),
-              ),
-            ),
-            validator: (value) {
-                if (value == null || value.isEmpty) {
-                return 'Please enter your password';
-                }
-                if (value.length < 6) {
-                return 'Password must be at least 6 characters';
-                }
-              return null;
-            },
-          ),
-          
-          if (!_isLogin) ...[
-            const SizedBox(height: 16),
             
             _buildTextField(
-              controller: _phoneController,
-                label: 'Phone Number (Optional)',
-              icon: Icons.phone_rounded,
-              keyboardType: TextInputType.phone,
+              controller: _passwordController,
+              label: 'Password',
+              icon: Icons.lock_rounded,
+              obscureText: _obscurePassword,
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() {
+                    _obscurePassword = !_obscurePassword;
+                  });
+                },
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  color: AppColors.textMuted,
+                ),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your password';
+                }
+                if (value.length < 6) {
+                  return 'Password must be at least 6 characters';
+                }
+                return null;
+              },
             ),
+            
+            if (!_isLogin) ...[
+              const SizedBox(height: 16),
+              
+              _buildTextField(
+                controller: _phoneController,
+                label: 'Phone Number (Optional)',
+                icon: Icons.phone_rounded,
+                keyboardType: TextInputType.phone,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -283,14 +304,14 @@ class _AuthScreenState extends State<AuthScreen> {
       obscureText: obscureText,
       keyboardType: keyboardType,
       validator: validator,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFFB0B0B0)),
-        prefixIcon: Icon(icon, color: const Color(0xFFB0B0B0)),
+        labelStyle: const TextStyle(color: AppColors.textMuted),
+        prefixIcon: Icon(icon, color: AppColors.textMuted),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: const Color(0xFF2D2D44),
+        fillColor: AppColors.surfaceColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -299,18 +320,18 @@ class _AuthScreenState extends State<AuthScreen> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
             color: _userType == UserType.waris 
-                ? const Color(0xFF4A90E2) 
-                : const Color(0xFF50C878),
+                ? AppColors.info 
+                : AppColors.accent,
             width: 2,
           ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
       ),
     );
@@ -318,17 +339,27 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _buildSubmitButton() {
     final color = _userType == UserType.waris 
-        ? const Color(0xFF4A90E2) 
-        : const Color(0xFF50C878);
+        ? AppColors.info 
+        : AppColors.accent;
         
-    return SizedBox(
+    return Container(
       width: double.infinity,
       height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.4),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         onPressed: _isLoading ? null : _handleSubmit,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
-          foregroundColor: Colors.white,
+          foregroundColor: AppColors.textPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -340,11 +371,11 @@ class _AuthScreenState extends State<AuthScreen> {
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                 ),
               )
             : Text(
-                _isLogin ? 'Login' : 'Register',
+                _isLogin ? 'Sign In' : 'Create Account',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -359,7 +390,6 @@ class _AuthScreenState extends State<AuthScreen> {
       onPressed: () {
         setState(() {
           _isLogin = !_isLogin;
-          // Clear form when switching
           _nameController.clear();
           _emailController.clear();
           _passwordController.clear();
@@ -372,16 +402,16 @@ class _AuthScreenState extends State<AuthScreen> {
           children: [
             TextSpan(
               text: _isLogin 
-                ? "Don't have an account? "
-                : 'Already have an account? ',
-              style: const TextStyle(color: Color(0xFFB0B0B0)),
+                  ? "Don't have an account? " 
+                  : 'Already have an account? ',
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
             TextSpan(
-              text: _isLogin ? 'Register here' : 'Login here',
+              text: _isLogin ? 'Sign up here' : 'Sign in here',
               style: TextStyle(
                 color: _userType == UserType.waris 
-                    ? const Color(0xFF4A90E2) 
-                    : const Color(0xFF50C878),
+                    ? AppColors.info 
+                    : AppColors.accent,
                 fontWeight: FontWeight.bold,
               ),
             ),

@@ -33,11 +33,6 @@ class DeathCaseService {
     return _firestore
         .collection('death_cases')
         .where('warisId', isEqualTo: warisId)
-        .where('status', whereIn: [
-          CaseStatus.pending.value,
-          CaseStatus.accepted.value,
-          CaseStatus.completed.value
-        ])
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
@@ -61,7 +56,7 @@ class DeathCaseService {
     });
   }
 
-  // NEW: Get cases handled by specific staff (history)
+  // Get cases handled by specific staff (history)
   Stream<List<DeathCaseModel>> getStaffHandledCases(String staffId) {
     return _firestore
         .collection('death_cases')
@@ -75,25 +70,7 @@ class DeathCaseService {
     });
   }
 
-  // NEW: Get all cases for staff dashboard (pending + handled)
-  Stream<List<DeathCaseModel>> getAllStaffCases(String staffId) {
-    return _firestore
-        .collection('death_cases')
-        .where('status', whereIn: [
-          CaseStatus.pending.value,
-          CaseStatus.accepted.value,
-          CaseStatus.completed.value
-        ])
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => DeathCaseModel.fromFirestore(doc))
-          .toList();
-    });
-  }
-
-  // Accept death case (for staff)
+  // Accept death case (for staff) - TIDAK BERUBAH
   Future<void> acceptDeathCase(String caseId, String staffId) async {
     try {
       await _firestore.collection('death_cases').doc(caseId).update({
@@ -106,18 +83,33 @@ class DeathCaseService {
     }
   }
 
-  // Decline death case (for staff)
+  // UPDATED: Decline death case - TETAP PENDING, TAMBAH DECLINED STAFF LIST
   Future<void> declineDeathCase(String caseId, String staffId) async {
     try {
-      await _firestore.collection('death_cases').doc(caseId).update({
-        'status': CaseStatus.declined.value,
-      });
+      // Get current case data
+      final docSnapshot = await _firestore.collection('death_cases').doc(caseId).get();
+      
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data() as Map<String, dynamic>;
+        List<dynamic> declinedByStaff = data['declinedByStaff'] ?? [];
+        
+        // Add staff to declined list if not already there
+        if (!declinedByStaff.contains(staffId)) {
+          declinedByStaff.add(staffId);
+        }
+        
+        // PENTING: Status tetap pending, cuma update declined staff list
+        await _firestore.collection('death_cases').doc(caseId).update({
+          'declinedByStaff': declinedByStaff,
+          // STATUS TIDAK BERUBAH - tetap pending
+        });
+      }
     } catch (e) {
       throw Exception('Failed to decline death case: ${e.toString()}');
     }
   }
 
-  // NEW: Complete death case
+  // Complete death case
   Future<void> completeDeathCase(String caseId) async {
     try {
       await _firestore.collection('death_cases').doc(caseId).update({

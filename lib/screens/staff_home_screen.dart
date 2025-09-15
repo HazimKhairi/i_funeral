@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:i_funeral/test_notification.dart';
 import '../models/enums.dart';
 import '../models/user_model.dart';
 import '../models/death_case_model.dart';
 import '../services/auth_service.dart';
 import '../services/death_case_service.dart';
 import '../services/notification_service.dart';
+import '../theme/app_colors.dart';
 
 class StaffHomeScreen extends StatefulWidget {
   const StaffHomeScreen({super.key});
@@ -17,10 +18,8 @@ class StaffHomeScreen extends StatefulWidget {
 class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProviderStateMixin {
   final _authService = AuthService();
   final _deathCaseService = DeathCaseService();
-  final _firestore = FirebaseFirestore.instance;
   UserModel? _currentUser;
   bool _isLoading = true;
-  int _unreadNotifications = 0;
   
   late TabController _tabController;
 
@@ -29,10 +28,6 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadCurrentUser();
-    _setupNotificationListener();
-    
-    // Setup notification handling for when app is in foreground
-    NotificationService.handleForegroundNotifications(context);
   }
 
   @override
@@ -51,7 +46,6 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       
       if (user != null && user.userType == UserType.staff) {
         await NotificationService.saveTokenToUser(user.id);
-        _checkUnreadNotifications();
       }
     } catch (e) {
       setState(() {
@@ -59,56 +53,16 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       });
     }
   }
-  
-  void _setupNotificationListener() {
-    // Listen for new notifications in Firestore
-    _firestore
-        .collection('notifications')
-        .where('userType', isEqualTo: 'staff')
-        .where('read', isEqualTo: false)
-        .snapshots()
-        .listen((snapshot) {
-      if (mounted) {
-        setState(() {
-          _unreadNotifications = snapshot.docs.length;
-        });
-      }
-    });
-  }
-  
-  void _testNotification() {
-    // Show a test notification
-    NotificationService.showTestNotification(
-      title: 'Test Notification',
-      body: 'This is a test notification for staff',
-      userType: UserType.staff,
-    );
-    
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Test notification sent'),
-        backgroundColor: Color(0xFF50C878),
+
+  // Add method to show test notification dialog
+  void _showTestNotificationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: const TestNotificationWidget(),
       ),
     );
-  }
-  
-  Future<void> _checkUnreadNotifications() async {
-    try {
-      final snapshot = await _firestore
-          .collection('notifications')
-          .where('userType', isEqualTo: 'staff')
-          .where('read', isEqualTo: false)
-          .get();
-      
-      if (mounted) {
-        setState(() {
-          _unreadNotifications = snapshot.docs.length;
-        });
-      }
-    } catch (e) {
-      print('Error checking unread notifications: $e');
-    }
   }
 
   Future<void> _handleAcceptCase(String caseId) async {
@@ -117,8 +71,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Application has been accepted'),
-            backgroundColor: Color(0xFF50C878),
+            content: Text('Request has been accepted successfully'),
+            backgroundColor: AppColors.success,
           ),
         );
       }
@@ -126,8 +80,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to accept application: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text('Failed to accept request: ${e.toString()}'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -143,8 +97,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Application has been rejected'),
-            backgroundColor: Color(0xFFFF6B6B),
+            content: Text('Request has been declined'),
+            backgroundColor: AppColors.warning,
           ),
         );
       }
@@ -152,8 +106,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to reject application: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text('Failed to decline request: ${e.toString()}'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -166,8 +120,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Application has been completed'),
-            backgroundColor: Color(0xFF4A90E2),
+            content: Text('Case has been marked as completed'),
+            backgroundColor: AppColors.info,
           ),
         );
       }
@@ -175,8 +129,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to complete application: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text('Failed to complete case: ${e.toString()}'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -187,7 +141,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
     return await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D44),
+        backgroundColor: AppColors.cardBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -195,14 +149,14 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
           children: [
             Icon(
               Icons.warning_rounded,
-              color: Color(0xFFFF6B6B),
+              color: AppColors.warning,
               size: 28,
             ),
             SizedBox(width: 12),
             Text(
-              'Reject Application',
+              'Decline Request',
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
@@ -210,9 +164,9 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
           ],
         ),
         content: const Text(
-          'Are you sure you want to reject this application?',
+          'Are you sure you want to decline this request?',
           style: TextStyle(
-            color: Color(0xFFB0B0B0),
+            color: AppColors.textSecondary,
             fontSize: 16,
           ),
         ),
@@ -222,7 +176,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             child: const Text(
               'Cancel',
               style: TextStyle(
-                color: Color(0xFFB0B0B0),
+                color: AppColors.textMuted,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -230,9 +184,9 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text(
-              'Reject',
+              'Decline',
               style: TextStyle(
-                color: Color(0xFFFF6B6B),
+                color: AppColors.error,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -256,180 +210,29 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to log out: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text('Failed to sign out: ${e.toString()}'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
     }
-  }
-  
-  void _showNotifications() async {
-    // Get notifications from Firestore
-    final notificationsSnapshot = await _firestore
-        .collection('notifications')
-        .where('userType', isEqualTo: 'staff')
-        .orderBy('createdAt', descending: true)
-        .limit(20)
-        .get();
-    
-    if (!mounted) return;
-    
-    // Mark notifications as read
-    for (final doc in notificationsSnapshot.docs) {
-      if (doc['read'] == false) {
-        await _firestore.collection('notifications').doc(doc.id).update({
-          'read': true
-        });
-      }
-    }
-    
-    // Reset unread count
-    setState(() {
-      _unreadNotifications = 0;
-    });
-    
-    // Show notifications in a modal bottom sheet
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF2D2D44),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.6,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            return Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 10, bottom: 20),
-                  width: 50,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[400],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.notifications_active,
-                        color: Color(0xFF50C878),
-                        size: 24,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Notifications',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(color: Color(0xFF3F3F5F)),
-                Expanded(
-                  child: notificationsSnapshot.docs.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No notifications yet',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                        )
-                      : ListView.builder(
-                          controller: scrollController,
-                          itemCount: notificationsSnapshot.docs.length,
-                          itemBuilder: (context, index) {
-                            final notification = notificationsSnapshot.docs[index];
-                            final data = notification.data();
-                            final notificationData = data['data'] as Map<String, dynamic>?;
-                            final timestamp = data['createdAt'] as Timestamp?;
-                            final formattedTime = timestamp != null
-                                ? '${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year} ${timestamp.toDate().hour}:${timestamp.toDate().minute.toString().padLeft(2, '0')}'
-                                : 'Just now';
-                            
-                            return ListTile(
-                              leading: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF50C878).withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.book_online,
-                                  color: Color(0xFF50C878),
-                                ),
-                              ),
-                              title: Text(
-                                data['title'] ?? 'New Notification',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    data['body'] ?? '',
-                                    style: const TextStyle(color: Colors.white70),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    formattedTime,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.5),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              onTap: () {
-                                // Navigate to case details if available
-                                if (notificationData != null && 
-                                    notificationData['type'] == 'new_case' && 
-                                    notificationData['caseId'] != null) {
-                                  Navigator.pop(context); // Close bottom sheet
-                                  // Navigate to case details
-                                  // You can implement this navigation based on your app's routing
-                                }
-                              },
-                            );
-                          },
-                        ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Color(0xFF1A1A2E),
+        backgroundColor: AppColors.primaryGreen,
         body: Center(
           child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF50C878)),
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
           ),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: AppColors.primaryGreen,
       body: SafeArea(
         child: Column(
           children: [
@@ -453,12 +256,19 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(24.0),
-      decoration: const BoxDecoration(
-        color: Color(0xFF2D2D44),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -466,12 +276,16 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: const Color(0xFF50C878),
+              color: AppColors.accent,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.highlight,
+                width: 2,
+              ),
             ),
             child: const Icon(
               Icons.work_rounded,
-              color: Colors.white,
+              color: AppColors.textPrimary,
               size: 24,
             ),
           ),
@@ -485,62 +299,30 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 Text(
                   'Staff Dashboard',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.white.withOpacity(0.7),
+                    color: AppColors.textPrimary.withOpacity(0.7),
                   ),
                 ),
               ],
             ),
           ),
-          Stack(
-            children: [
-              IconButton(
-                onPressed: _showNotifications,
-                icon: const Icon(
-                  Icons.notifications_outlined,
-                  color: Colors.white,
-                  size: 28,
-                ),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceColor,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: IconButton(
+              onPressed: _signOut,
+              icon: const Icon(
+                Icons.logout_rounded,
+                color: AppColors.textPrimary,
               ),
-              if (_unreadNotifications > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF6B6B),
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
-                    child: Text(
-                      _unreadNotifications > 9 ? '9+' : _unreadNotifications.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: _signOut,
-            icon: const Icon(
-              Icons.logout_rounded,
-              color: Colors.white,
             ),
           ),
         ],
@@ -552,18 +334,26 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
     return Container(
       margin: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D44),
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: TabBar(
         controller: _tabController,
         indicator: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: const Color(0xFF50C878),
+          color: AppColors.accent,
         ),
         indicatorSize: TabBarIndicatorSize.tab,
-        labelColor: Colors.white,
-        unselectedLabelColor: const Color(0xFFB0B0B0),
+        labelColor: AppColors.textPrimary,
+        unselectedLabelColor: AppColors.textMuted,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
         tabs: const [
           Tab(
             child: Row(
@@ -571,7 +361,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
               children: [
                 Icon(Icons.notifications_active, size: 20),
                 SizedBox(width: 8),
-                Text('New Applications'),
+                Text('New Requests'),
               ],
             ),
           ),
@@ -596,38 +386,27 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Welcome, ${_currentUser?.name ?? 'Staff'}',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+          Text(
+            'Welcome, ${_currentUser?.name ?? 'Staff Member'}',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+              shadows: [
+                Shadow(
+                  offset: Offset(1, 1),
+                  blurRadius: 3,
+                  color: Colors.black26,
                 ),
-              ),
-              // Test notification button
-              ElevatedButton.icon(
-                onPressed: _testNotification,
-                icon: const Icon(Icons.notifications_active, size: 16),
-                label: const Text('Test Notification'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF50C878),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
-            'There are new applications waiting for your action',
+            'New requests are waiting for your action',
             style: TextStyle(
               fontSize: 16,
-              color: Color(0xFFB0B0B0),
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 30),
@@ -638,7 +417,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF50C878)),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
                   ),
                 );
               }
@@ -673,19 +452,26 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'My Application History',
+            'My Request History',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppColors.textPrimary,
+              shadows: [
+                Shadow(
+                  offset: Offset(1, 1),
+                  blurRadius: 3,
+                  color: Colors.black26,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),
           const Text(
-            'Applications you have accepted',
+            'Requests that you have accepted',
             style: TextStyle(
               fontSize: 16,
-              color: Color(0xFFB0B0B0),
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 30),
@@ -696,7 +482,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF50C878)),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
                   ),
                 );
               }
@@ -718,17 +504,25 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
     );
   }
 
+  // Rest of your existing methods remain the same...
   Widget _buildPendingCaseCard(DeathCaseModel deathCase) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D44),
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFFFA500).withOpacity(0.3),
-          width: 1,
+          color: AppColors.warning.withOpacity(0.5),
+          width: 2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -737,26 +531,26 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFA500).withOpacity(0.1),
+              color: AppColors.warning.withOpacity(0.1),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+                topLeft: Radius.circular(14),
+                topRight: Radius.circular(14),
               ),
             ),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFA500),
+                    color: AppColors.warning,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
-                    'NEW',
+                    'NEW REQUEST',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -765,16 +559,18 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                   deathCase.serviceType == ServiceType.fullService 
                       ? Icons.home_work_rounded 
                       : Icons.local_shipping_rounded,
-                  color: const Color(0xFFFFA500),
+                  color: AppColors.warning,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  deathCase.serviceType.displayName,
+                  deathCase.serviceType == ServiceType.fullService 
+                      ? 'Full Service' 
+                      : 'Delivery Only',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFFFFA500),
+                    color: AppColors.warning,
                   ),
                 ),
               ],
@@ -796,22 +592,26 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4A90E2).withOpacity(0.2),
+                        color: AppColors.info.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.info,
+                          width: 1,
+                        ),
                       ),
                       child: Text(
-                        '${deathCase.age} years',
+                        '${deathCase.age} years old',
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF4A90E2),
+                          color: AppColors.info,
                         ),
                       ),
                     ),
@@ -826,7 +626,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                       ? Icons.male_rounded 
                       : Icons.female_rounded,
                   label: 'Gender',
-                  value: deathCase.gender.displayName,
+                  value: deathCase.gender == Gender.lelaki ? 'Male' : 'Female',
                 ),
                 
                 const SizedBox(height: 12),
@@ -858,7 +658,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                 
                 _buildDetailRow(
                   icon: Icons.access_time_rounded,
-                  label: 'Application Time',
+                  label: 'Request Time',
                   value: _formatDateTime(deathCase.createdAt),
                 ),
                 
@@ -868,44 +668,68 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                 Row(
                   children: [
                     Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _handleDeclineCase(deathCase.id),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF6B6B),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          elevation: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.error.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
-                        icon: const Icon(Icons.close_rounded, size: 20),
-                        label: const Text(
-                          'Reject',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _handleDeclineCase(deathCase.id),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.error,
+                            foregroundColor: AppColors.textPrimary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 0,
+                          ),
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                          label: const Text(
+                            'Decline',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _handleAcceptCase(deathCase.id),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF50C878),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          elevation: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.success.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
-                        icon: const Icon(Icons.check_rounded, size: 20),
-                        label: const Text(
-                          'Accept',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _handleAcceptCase(deathCase.id),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.success,
+                            foregroundColor: AppColors.textPrimary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 0,
+                          ),
+                          icon: const Icon(Icons.check_rounded, size: 20),
+                          label: const Text(
+                            'Accept',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
@@ -925,12 +749,19 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D44),
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _getStatusColor(deathCase.status).withOpacity(0.3),
-          width: 1,
+          color: _getStatusColor(deathCase.status).withOpacity(0.5),
+          width: 2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -941,14 +772,14 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             decoration: BoxDecoration(
               color: _getStatusColor(deathCase.status).withOpacity(0.1),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+                topLeft: Radius.circular(14),
+                topRight: Radius.circular(14),
               ),
             ),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: _getStatusColor(deathCase.status),
                     borderRadius: BorderRadius.circular(8),
@@ -958,7 +789,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -972,7 +803,9 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  deathCase.serviceType.displayName,
+                  deathCase.serviceType == ServiceType.fullService 
+                      ? 'Full Service' 
+                      : 'Delivery Only',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -998,22 +831,26 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4A90E2).withOpacity(0.2),
+                        color: AppColors.info.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.info,
+                          width: 1,
+                        ),
                       ),
                       child: Text(
-                        '${deathCase.age} tahun',
+                        '${deathCase.age} years old',
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF4A90E2),
+                          color: AppColors.info,
                         ),
                       ),
                     ),
@@ -1024,7 +861,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                 
                 _buildDetailRow(
                   icon: Icons.access_time_rounded,
-                  label: 'Accepted on',
+                  label: 'Accepted On',
                   value: deathCase.acceptedAt != null 
                       ? _formatDateTime(deathCase.acceptedAt!)
                       : 'N/A',
@@ -1034,7 +871,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                 
                 _buildDetailRow(
                   icon: Icons.location_on_rounded,
-                  label: 'Alamat',
+                  label: 'Address',
                   value: deathCase.address,
                 ),
                 
@@ -1042,7 +879,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                   const SizedBox(height: 12),
                   _buildDetailRow(
                     icon: Icons.local_shipping_rounded,
-                    label: 'Lokasi Penghantaran',
+                    label: 'Delivery Location',
                     value: deathCase.deliveryLocation!,
                   ),
                 ],
@@ -1050,13 +887,23 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                 // Complete button for accepted cases
                 if (deathCase.status == CaseStatus.accepted) ...[
                   const SizedBox(height: 24),
-                  SizedBox(
+                  Container(
                     width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.info.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
                     child: ElevatedButton.icon(
                       onPressed: () => _handleCompleteCase(deathCase.id),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4A90E2),
-                        foregroundColor: Colors.white,
+                        backgroundColor: AppColors.info,
+                        foregroundColor: AppColors.textPrimary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -1089,10 +936,17 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 18,
-          color: const Color(0xFFB0B0B0),
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceColor,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: AppColors.textMuted,
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -1103,7 +957,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                 label,
                 style: const TextStyle(
                   fontSize: 12,
-                  color: Color(0xFFB0B0B0),
+                  color: AppColors.textMuted,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -1112,7 +966,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                 value,
                 style: const TextStyle(
                   fontSize: 14,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1128,31 +982,42 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       width: double.infinity,
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D44),
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.surfaceColor,
+          width: 1,
+        ),
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.inbox_rounded,
-            size: 64,
-            color: Colors.white.withOpacity(0.3),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceColor,
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: Icon(
+              Icons.inbox_rounded,
+              size: 48,
+              color: AppColors.textMuted.withOpacity(0.5),
+            ),
           ),
           const SizedBox(height: 20),
           Text(
-            'No New Applications',
+            'No New Requests',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white.withOpacity(0.7),
+              color: AppColors.textPrimary.withOpacity(0.8),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'New applications will be displayed here',
+            'New requests will appear here',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.5),
+              color: AppColors.textMuted.withOpacity(0.7),
             ),
           ),
         ],
@@ -1165,15 +1030,26 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       width: double.infinity,
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D44),
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.surfaceColor,
+          width: 1,
+        ),
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.history_rounded,
-            size: 64,
-            color: Colors.white.withOpacity(0.3),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceColor,
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: Icon(
+              Icons.history_rounded,
+              size: 48,
+              color: AppColors.textMuted.withOpacity(0.5),
+            ),
           ),
           const SizedBox(height: 20),
           Text(
@@ -1181,15 +1057,15 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white.withOpacity(0.7),
+              color: AppColors.textPrimary.withOpacity(0.8),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Applications you have accepted will be displayed here',
+            'Requests you accept will appear here',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.5),
+              color: AppColors.textMuted.withOpacity(0.7),
             ),
           ),
         ],
@@ -1202,15 +1078,26 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       width: double.infinity,
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D44),
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.error.withOpacity(0.3),
+          width: 1,
+        ),
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            size: 64,
-            color: Color(0xFFFF6B6B),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.error.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: const Icon(
+              Icons.error_outline_rounded,
+              size: 48,
+              color: AppColors.error,
+            ),
           ),
           const SizedBox(height: 20),
           const Text(
@@ -1218,7 +1105,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -1226,7 +1113,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             'Please try again later',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.7),
+              color: AppColors.textPrimary.withOpacity(0.7),
             ),
           ),
         ],
@@ -1241,7 +1128,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       case CaseStatus.accepted:
         return 'Accepted';
       case CaseStatus.declined:
-        return 'Rejected';
+        return 'Declined';
       case CaseStatus.completed:
         return 'Completed';
     }
@@ -1250,13 +1137,13 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
   Color _getStatusColor(CaseStatus status) {
     switch (status) {
       case CaseStatus.pending:
-        return const Color(0xFFFFA500);
+        return AppColors.warning;
       case CaseStatus.accepted:
-        return const Color(0xFF50C878);
+        return AppColors.success;
       case CaseStatus.declined:
-        return const Color(0xFFFF6B6B);
+        return AppColors.error;
       case CaseStatus.completed:
-        return const Color(0xFF4A90E2);
+        return AppColors.info;
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/enums.dart';
+import '../theme/app_colors.dart';
 
 class RegistrationScreen extends StatelessWidget {
   const RegistrationScreen({super.key});
@@ -15,49 +16,49 @@ class RegistrationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: AppColors.primaryGreen,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            children: [
-              const SizedBox(height: 60),
-              
-              // Header Section
-              _buildHeader(),
-              
-              const SizedBox(height: 80),
-              
-              // Selection Cards
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildSelectionCard(
-                      context: context,
-                        title: 'Waris',
-                        subtitle: 'Register as waris to request services',
-                      icon: Icons.family_restroom_rounded,
-                      userType: UserType.waris,
-                      color: const Color(0xFF4A90E2),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    _buildSelectionCard(
-                      context: context,
-                      title: 'Staff',
-                        subtitle: 'Register as staff to provide services',
-                      icon: Icons.work_rounded,
-                      userType: UserType.staff,
-                      color: const Color(0xFF50C878),
-                    ),
-                  ],
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              children: [
+                const SizedBox(height: 60),
+                
+                _buildHeader(),
+                
+                const SizedBox(height: 80),
+                
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildSelectionCard(
+                        context: context,
+                        title: 'Family Member',
+                        subtitle: 'Register as a family member to request funeral services',
+                        icon: Icons.family_restroom_rounded,
+                        userType: UserType.waris,
+                        color: AppColors.info,
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      _buildSelectionCard(
+                        context: context,
+                        title: 'Staff Member',
+                        subtitle: 'Register as a staff member to provide funeral services',
+                        icon: Icons.work_rounded,
+                        userType: UserType.staff,
+                        color: AppColors.accent,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              
-              const SizedBox(height: 40),
-            ],
+                
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
       ),
@@ -67,46 +68,56 @@ class RegistrationScreen extends StatelessWidget {
   Widget _buildHeader() {
     return Column(
       children: [
-        // Logo
         Container(
           width: 80,
           height: 80,
           decoration: BoxDecoration(
-            color: const Color(0xFF4A90E2),
+            color: AppColors.lightGreen,
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF4A90E2).withOpacity(0.3),
-                blurRadius: 15,
+                color: AppColors.lightGreen.withOpacity(0.4),
+                blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
             ],
+            border: Border.all(
+              color: AppColors.highlight,
+              width: 2,
+            ),
           ),
           child: const Icon(
             Icons.favorite_rounded,
             size: 40,
-            color: Colors.white,
+            color: AppColors.textPrimary,
           ),
         ),
         
         const SizedBox(height: 24),
         
         const Text(
-            'Welcome',
+          'Welcome to I-Funeral',
           style: TextStyle(
-            fontSize: 28,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppColors.textPrimary,
+            shadows: [
+              Shadow(
+                offset: Offset(1, 1),
+                blurRadius: 3,
+                color: Colors.black26,
+              ),
+            ],
           ),
         ),
         
         const SizedBox(height: 8),
         
         const Text(
-            'Choose your registration category',
+          'Choose your registration category',
           style: TextStyle(
             fontSize: 16,
-            color: Color(0xFFB0B0B0),
+            color: AppColors.textSecondary,
           ),
         ),
       ],
@@ -127,29 +138,32 @@ class RegistrationScreen extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF2D2D44),
+          color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: color.withOpacity(0.3),
-            width: 1,
+            color: color.withOpacity(0.5),
+            width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
         child: Row(
           children: [
-            // Icon Container
             Container(
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: color.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  color: color,
+                  width: 2,
+                ),
               ),
               child: Icon(
                 icon,
@@ -160,7 +174,6 @@ class RegistrationScreen extends StatelessWidget {
             
             const SizedBox(width: 20),
             
-            // Text Content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,7 +193,7 @@ class RegistrationScreen extends StatelessWidget {
                     subtitle,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFFB0B0B0),
+                      color: AppColors.textMuted,
                       height: 1.4,
                     ),
                   ),
@@ -188,7 +201,6 @@ class RegistrationScreen extends StatelessWidget {
               ),
             ),
             
-            // Arrow Icon
             Icon(
               Icons.arrow_forward_ios_rounded,
               color: color,

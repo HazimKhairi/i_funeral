@@ -15,6 +15,7 @@ class DeathCaseModel {
   final CaseStatus status;
   final DateTime createdAt;
   final DateTime? acceptedAt;
+  final List<String> declinedByStaff; // TAMBAH FIELD INI
 
   const DeathCaseModel({
     required this.id,
@@ -30,6 +31,7 @@ class DeathCaseModel {
     required this.status,
     required this.createdAt,
     this.acceptedAt,
+    this.declinedByStaff = const [], // DEFAULT EMPTY LIST
   });
 
   DeathCaseModel copyWith({
@@ -46,6 +48,7 @@ class DeathCaseModel {
     CaseStatus? status,
     DateTime? createdAt,
     DateTime? acceptedAt,
+    List<String>? declinedByStaff, // TAMBAH INI
   }) {
     return DeathCaseModel(
       id: id ?? this.id,
@@ -61,6 +64,7 @@ class DeathCaseModel {
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       acceptedAt: acceptedAt ?? this.acceptedAt,
+      declinedByStaff: declinedByStaff ?? this.declinedByStaff, // TAMBAH INI
     );
   }
 
@@ -79,6 +83,7 @@ class DeathCaseModel {
       'status': status.value,
       'createdAt': Timestamp.fromDate(createdAt),
       'acceptedAt': acceptedAt != null ? Timestamp.fromDate(acceptedAt!) : null,
+      'declinedByStaff': declinedByStaff, // TAMBAH INI
     };
   }
 
@@ -97,6 +102,7 @@ class DeathCaseModel {
       status: CaseStatusExtension.fromString(map['status'] ?? 'pending'),
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       acceptedAt: map['acceptedAt'] != null ? (map['acceptedAt'] as Timestamp).toDate() : null,
+      declinedByStaff: List<String>.from(map['declinedByStaff'] ?? []), // TAMBAH INI
     );
   }
 

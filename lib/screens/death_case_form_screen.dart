@@ -3,6 +3,8 @@ import '../models/enums.dart';
 import '../models/user_model.dart';
 import '../models/death_case_model.dart';
 import '../services/death_case_service.dart';
+import '../services/notification_service.dart'; // Add this import
+import '../theme/app_colors.dart';
 
 class DeathCaseFormScreen extends StatefulWidget {
   const DeathCaseFormScreen({super.key});
@@ -26,6 +28,12 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
   Gender _selectedGender = Gender.lelaki;
   bool _isLoading = false;
 
+  // DEBUG VARIABLES
+  List<String> _debugMessages = [];
+  bool _showDebugPanel = false;
+  bool _notificationSent = false;
+  String? _notificationError;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -44,14 +52,28 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
     super.dispose();
   }
 
+  // DEBUG METHOD
+  void _addDebugMessage(String message) {
+    setState(() {
+      _debugMessages.add('${DateTime.now().toLocal().toString().substring(11, 19)}: $message');
+    });
+    print('🔍 DEBUG: $message'); // Also print to console
+  }
+
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isLoading = true;
+      _debugMessages.clear();
+      _notificationSent = false;
+      _notificationError = null;
+      _showDebugPanel = true;
     });
 
     try {
+      _addDebugMessage('Starting form submission...');
+      
       final deathCase = DeathCaseModel(
         id: '', // Will be set by Firestore
         fullName: _fullNameController.text.trim(),
@@ -68,17 +90,31 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
         createdAt: DateTime.now(),
       );
 
-      await _deathCaseService.createDeathCase(deathCase);
+      _addDebugMessage('Death case model created');
+      _addDebugMessage('Saving to Firestore...');
+
+      // Create death case with debugging
+      final caseId = await _deathCaseService.createDeathCase(deathCase);
+      
+      _addDebugMessage('Case saved to Firestore with ID: ${caseId.substring(0, 8)}...');
+      
+      // Test notification directly here for debugging
+      await _testNotificationSending(deathCase.fullName, caseId, deathCase.serviceType);
 
       if (mounted) {
+        _addDebugMessage('Form submission completed successfully');
+        
+        // Show success dialog after a short delay to see debug info
+        await Future.delayed(const Duration(seconds: 2));
         _showSuccessDialog();
       }
     } catch (e) {
+      _addDebugMessage('ERROR: ${e.toString()}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to submit application: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text('Failed to submit request: ${e.toString()}'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -91,51 +127,156 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
     }
   }
 
+  // DEBUG NOTIFICATION TEST
+  Future<void> _testNotificationSending(String caseName, String caseId, ServiceType serviceType) async {
+    try {
+      _addDebugMessage('Testing notification system...');
+      
+      // Test direct notification call
+      await NotificationService.notifyStaffNewCase(
+        caseName: caseName,
+        caseId: caseId,
+        serviceType: serviceType,
+      );
+      
+      setState(() {
+        _notificationSent = true;
+      });
+      _addDebugMessage('✅ Notification sent successfully!');
+      
+    } catch (e) {
+      setState(() {
+        _notificationError = e.toString();
+      });
+      _addDebugMessage('❌ Notification failed: ${e.toString()}');
+    }
+  }
+
   void _showSuccessDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D44),
+        backgroundColor: AppColors.cardBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(
-              Icons.check_circle_rounded,
-              color: Color(0xFF50C878),
-              size: 28,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: AppColors.success,
+                size: 28,
+              ),
             ),
-            SizedBox(width: 12),
-            Text(
-                'Successfully Submitted',
+            const SizedBox(width: 12),
+            const Text(
+              'Successfully Submitted',
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ],
         ),
-        content: const Text(
-            'Your application has been successfully submitted. Our staff will contact you shortly.',
-          style: TextStyle(
-            color: Color(0xFFB0B0B0),
-            fontSize: 16,
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your request has been successfully submitted. Our staff will contact you shortly.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 16,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // NOTIFICATION STATUS
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _notificationSent 
+                    ? AppColors.success.withOpacity(0.1)
+                    : AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _notificationSent 
+                      ? AppColors.success
+                      : AppColors.error,
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _notificationSent 
+                        ? Icons.notifications_active
+                        : Icons.notifications_off,
+                    color: _notificationSent 
+                        ? AppColors.success
+                        : AppColors.error,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _notificationSent 
+                          ? 'Staff notifications sent successfully'
+                          : 'Notification failed: ${_notificationError ?? 'Unknown error'}',
+                      style: TextStyle(
+                        color: _notificationSent 
+                            ? AppColors.success
+                            : AppColors.error,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pop(); // Go back to home
-            },
-            child: const Text(
-              'OK',
-              style: TextStyle(
-                color: Color(0xFF4A90E2),
-                fontWeight: FontWeight.bold,
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.info.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                Navigator.of(context).pop(); // Go back to home
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: AppColors.info,
+                foregroundColor: AppColors.textPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: const Text(
+                'OK',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),
@@ -147,41 +288,174 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: AppColors.primaryGreen,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2D2D44),
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.cardBackground,
+        foregroundColor: AppColors.textPrimary,
         title: Text(
-          _serviceType?.displayName ?? 'Application Form',
+          _serviceType == ServiceType.fullService 
+              ? 'Full Service Request' 
+              : 'Delivery Service Request',
           style: const TextStyle(
             fontWeight: FontWeight.bold,
           ),
         ),
         elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildServiceTypeHeader(),
-              const SizedBox(height: 30),
-              _buildFormFields(),
-              const SizedBox(height: 40),
-              _buildSubmitButton(),
-            ],
+        leading: Container(
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceColor,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(
+              Icons.arrow_back_ios_rounded,
+              color: AppColors.textPrimary,
+            ),
           ),
         ),
+        // ADD DEBUG TOGGLE BUTTON
+        actions: [
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _showDebugPanel = !_showDebugPanel;
+              });
+            },
+            icon: Icon(
+              Icons.bug_report,
+              color: _showDebugPanel ? AppColors.warning : AppColors.textMuted,
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // DEBUG PANEL
+          if (_showDebugPanel) _buildDebugPanel(),
+          
+          // MAIN CONTENT
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildServiceTypeHeader(),
+                    const SizedBox(height: 30),
+                    _buildFormSection(),
+                    const SizedBox(height: 40),
+                    _buildSubmitButton(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
+  // DEBUG PANEL WIDGET
+  Widget _buildDebugPanel() {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(maxHeight: 200),
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.warning,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.bug_report,
+                color: AppColors.warning,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Debug Panel - Notification Status',
+                style: TextStyle(
+                  color: AppColors.warning,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _debugMessages.clear();
+                  });
+                },
+                icon: const Icon(
+                  Icons.clear,
+                  color: AppColors.textMuted,
+                  size: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceColor,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: _debugMessages.isEmpty
+                  ? const Text(
+                      'Submit form to see debug information...',
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: _debugMessages.map((message) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            message,
+                            style: TextStyle(
+                              color: message.contains('✅') 
+                                  ? AppColors.success
+                                  : message.contains('❌') 
+                                      ? AppColors.error
+                                      : AppColors.textSecondary,
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        )).toList(),
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Your existing methods remain the same...
   Widget _buildServiceTypeHeader() {
     final color = _serviceType == ServiceType.fullService 
-        ? const Color(0xFF4A90E2) 
-        : const Color(0xFF50C878);
+        ? AppColors.info 
+        : AppColors.accent;
     
     final icon = _serviceType == ServiceType.fullService 
         ? Icons.home_work_rounded 
@@ -189,49 +463,70 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D44),
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
+          color: color.withOpacity(0.5),
+          width: 2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 50,
-            height: 50,
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(
+                color: color,
+                width: 2,
+              ),
             ),
             child: Icon(
               icon,
-              size: 24,
+              size: 28,
               color: color,
             ),
           ),
-          const SizedBox(width: 16),
+          
+          const SizedBox(width: 20),
+          
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _serviceType?.displayName ?? '',
+                  _serviceType == ServiceType.fullService 
+                      ? 'Full Service' 
+                      : 'Delivery Only',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: color,
                   ),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                    'Please fill in the deceased information completely',
-                  style: TextStyle(
+                const SizedBox(height: 6),
+                Text(
+                  'Please fill in the deceased information completely',
+                  style: const TextStyle(
                     fontSize: 14,
-                    color: Color(0xFFB0B0B0),
+                    color: AppColors.textMuted,
+                    height: 1.3,
                   ),
                 ),
               ],
@@ -242,110 +537,133 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
     );
   }
 
-  Widget _buildFormFields() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-            'Deceased Information',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+  // Rest of your existing methods (_buildFormSection, _buildTextField, etc.) remain the same...
+  Widget _buildFormSection() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
-        ),
-        const SizedBox(height: 20),
-        
-        // Nama Penuh
-        _buildTextField(
-          controller: _fullNameController,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Deceased Information',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Please provide accurate information about the deceased',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Full Name
+          _buildTextField(
+            controller: _fullNameController,
             label: 'Full Name',
             icon: Icons.person_rounded,
             validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter full name';
-            }
-            return null;
-          },
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // Umur
-        _buildTextField(
-          controller: _ageController,
+              if (value == null || value.isEmpty) {
+                return 'Please enter the full name';
+              }
+              return null;
+            },
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Age
+          _buildTextField(
+            controller: _ageController,
             label: 'Age',
             icon: Icons.cake_rounded,
             keyboardType: TextInputType.number,
             validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter age';
-            }
-            final age = int.tryParse(value);
-            if (age == null || age <= 0 || age > 150) {
-              return 'Please enter a valid age';
-            }
-            return null;
-          },
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // Jantina
-        _buildGenderSelection(),
-        
-        const SizedBox(height: 16),
-        
-        // Sebab Kematian
-        _buildTextField(
-          controller: _causeOfDeathController,
+              if (value == null || value.isEmpty) {
+                return 'Please enter the age';
+              }
+              final age = int.tryParse(value);
+              if (age == null || age <= 0 || age > 150) {
+                return 'Please enter a valid age';
+              }
+              return null;
+            },
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Gender Selection
+          _buildGenderSelection(),
+          
+          const SizedBox(height: 20),
+          
+          // Cause of Death
+          _buildTextField(
+            controller: _causeOfDeathController,
             label: 'Cause of Death',
             icon: Icons.medical_information_rounded,
             maxLines: 2,
             validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter cause of death';
-            }
-            return null;
-          },
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // Alamat
-        _buildTextField(
-          controller: _addressController,
+              if (value == null || value.isEmpty) {
+                return 'Please enter the cause of death';
+              }
+              return null;
+            },
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Address
+          _buildTextField(
+            controller: _addressController,
             label: 'Address',
             icon: Icons.location_on_rounded,
             maxLines: 3,
             validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter address';
-            }
-            return null;
-          },
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // Lokasi Penghantaran (Optional for Full Service, Required for Delivery Only)
-        _buildTextField(
-          controller: _deliveryLocationController,
+              if (value == null || value.isEmpty) {
+                return 'Please enter the address';
+              }
+              return null;
+            },
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Delivery Location
+          _buildTextField(
+            controller: _deliveryLocationController,
             label: _serviceType == ServiceType.deliveryOnly 
-              ? 'Delivery Location *' 
-              : 'Delivery Location (Optional)',
+                ? 'Delivery Location *' 
+                : 'Delivery Location (Optional)',
             icon: Icons.local_shipping_rounded,
             maxLines: 2,
             validator: (value) {
-            if (_serviceType == ServiceType.deliveryOnly) {
-              if (value == null || value.isEmpty) {
-              return 'Please enter delivery location';
+              if (_serviceType == ServiceType.deliveryOnly) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter the delivery location';
+                }
               }
-            }
-            return null;
-          },
-        ),
-      ],
+              return null;
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -357,38 +675,68 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
     int maxLines = 1,
     String? Function(String?)? validator,
   }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      validator: validator,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFFB0B0B0)),
-        prefixIcon: Icon(icon, color: const Color(0xFFB0B0B0)),
-        filled: true,
-        fillColor: const Color(0xFF2D2D44),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Color(0xFF4A90E2),
-            width: 2,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
           ),
         ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          validator: validator,
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: InputDecoration(
+            hintText: 'Enter $label',
+            hintStyle: const TextStyle(color: AppColors.textMuted),
+            prefixIcon: Container(
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon, 
+                color: AppColors.textMuted,
+                size: 20,
+              ),
+            ),
+            filled: true,
+            fillColor: AppColors.surfaceColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.info,
+                width: 2,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.error, width: 2),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.error, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
+          ),
         ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
-        ),
-      ),
+      ],
     );
   }
 
@@ -400,7 +748,8 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
           'Gender',
           style: TextStyle(
             fontSize: 16,
-            color: Color(0xFFB0B0B0),
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
           ),
         ),
         const SizedBox(height: 12),
@@ -417,32 +766,44 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: _selectedGender == Gender.lelaki 
-                        ? const Color(0xFF4A90E2).withOpacity(0.2)
-                        : const Color(0xFF2D2D44),
+                        ? AppColors.info.withOpacity(0.2)
+                        : AppColors.surfaceColor,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _selectedGender == Gender.lelaki 
-                          ? const Color(0xFF4A90E2)
-                          : Colors.transparent,
+                          ? AppColors.info
+                          : AppColors.surfaceColor,
                       width: 2,
                     ),
                   ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.male_rounded,
-                        color: _selectedGender == Gender.lelaki 
-                            ? const Color(0xFF4A90E2)
-                            : const Color(0xFFB0B0B0),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _selectedGender == Gender.lelaki 
+                              ? AppColors.info.withOpacity(0.2)
+                              : AppColors.cardBackground,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.male_rounded,
+                          color: _selectedGender == Gender.lelaki 
+                              ? AppColors.info
+                              : AppColors.textMuted,
+                          size: 20,
+                        ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Text(
-                        'Men',
+                        'Male',
                         style: TextStyle(
                           color: _selectedGender == Gender.lelaki 
-                              ? const Color(0xFF4A90E2)
-                              : const Color(0xFFB0B0B0),
+                              ? AppColors.info
+                              : AppColors.textMuted,
                           fontWeight: FontWeight.w600,
+                          fontSize: 16,
                         ),
                       ),
                     ],
@@ -450,7 +811,7 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: GestureDetector(
                 onTap: () {
@@ -462,32 +823,44 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: _selectedGender == Gender.perempuan 
-                        ? const Color(0xFF4A90E2).withOpacity(0.2)
-                        : const Color(0xFF2D2D44),
+                        ? AppColors.info.withOpacity(0.2)
+                        : AppColors.surfaceColor,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _selectedGender == Gender.perempuan 
-                          ? const Color(0xFF4A90E2)
-                          : Colors.transparent,
+                          ? AppColors.info
+                          : AppColors.surfaceColor,
                       width: 2,
                     ),
                   ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.female_rounded,
-                        color: _selectedGender == Gender.perempuan 
-                            ? const Color(0xFF4A90E2)
-                            : const Color(0xFFB0B0B0),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _selectedGender == Gender.perempuan 
+                              ? AppColors.info.withOpacity(0.2)
+                              : AppColors.cardBackground,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.female_rounded,
+                          color: _selectedGender == Gender.perempuan 
+                              ? AppColors.info
+                              : AppColors.textMuted,
+                          size: 20,
+                        ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Text(
-                        'Women',
+                        'Female',
                         style: TextStyle(
                           color: _selectedGender == Gender.perempuan 
-                              ? const Color(0xFF4A90E2)
-                              : const Color(0xFFB0B0B0),
+                              ? AppColors.info
+                              : AppColors.textMuted,
                           fontWeight: FontWeight.w600,
+                          fontSize: 16,
                         ),
                       ),
                     ],
@@ -502,34 +875,76 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
   }
 
   Widget _buildSubmitButton() {
-    return SizedBox(
+    return Container(
       width: double.infinity,
-      height: 56,
+      height: 60,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.info.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         onPressed: _isLoading ? null : _submitForm,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF4A90E2),
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.info,
+          foregroundColor: AppColors.textPrimary,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           elevation: 0,
+          disabledBackgroundColor: AppColors.textMuted,
         ),
         child: _isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
+            ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    'Submitting Request...',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               )
-            : const Text(
-                'Submit Application',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.textPrimary.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.send_rounded,
+                      size: 20,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Submit Request',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
       ),
     );

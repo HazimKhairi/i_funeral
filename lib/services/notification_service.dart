@@ -31,25 +31,28 @@ class NotificationService {
   }
 
   // Show notification overlay (appears from top)
-  static void showNotificationOverlay({
-    required String title,
-    required String body,
-  }) {
-    showOverlayNotification(
-      (context) {
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2D2D44),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
+ // Show notification overlay (appears from top)
+static void showNotificationOverlay({
+  required String title,
+  required String body,
+}) {
+  showOverlayNotification(
+    (context) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2D2D44),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material( // ADD THIS MATERIAL WRAPPER
+          color: Colors.transparent,
           child: ListTile(
             leading: Container(
               width: 40,
@@ -84,12 +87,13 @@ class NotificationService {
               color: Color(0xFF50C878),
             ),
           ),
-        );
-      },
-      duration: const Duration(seconds: 5),
-      position: NotificationPosition.top,
-    );
-  }
+        ),
+      );
+    },
+    duration: const Duration(seconds: 4),
+    position: NotificationPosition.top,
+  );
+}
 
   // Save FCM token to user document
   static Future<void> saveTokenToUser(String userId) async {

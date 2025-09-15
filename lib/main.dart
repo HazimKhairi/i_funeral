@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:overlay_support/overlay_support.dart'; // Make sure this import exists
 import 'services/notification_service.dart';
 import 'screens/loading_screen.dart';
 import 'screens/registration_screen.dart';
@@ -50,28 +51,37 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'I-Funeral',
-      debugShowCheckedModeBanner: false,
-      navigatorKey: navigatorKey,
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Inter',
+    // IMPORTANT: Wrap with OverlaySupport.global() FIRST
+    return OverlaySupport.global(
+      child: MaterialApp(
+        title: 'I-Funeral',
+        debugShowCheckedModeBanner: false,
+        navigatorKey: navigatorKey,
+        theme: ThemeData(
+          useMaterial3: true,
+          fontFamily: 'Inter',
+        ),
+        home: const LoadingScreen(),
+        routes: {
+          '/loading': (context) => const LoadingScreen(),
+          '/registration': (context) => const RegistrationScreen(),
+          '/auth': (context) => const AuthScreen(),
+          '/waris-home': (context) => const WarisHomeScreen(),
+          '/death-case-form': (context) => const DeathCaseFormScreen(),
+          '/staff-home': (context) => const StaffHomeScreen(),
+        },
+        // Remove this builder if you have it
+        // builder: (context, child) {
+        //   NotificationService.handleForegroundNotifications(context);
+        //   return child!;
+        // },
       ),
-      home: const LoadingScreen(),
-      routes: {
-        '/loading': (context) => const LoadingScreen(),
-        '/registration': (context) => const RegistrationScreen(),
-        '/auth': (context) => const AuthScreen(),
-        '/waris-home': (context) => const WarisHomeScreen(),
-        '/death-case-form': (context) => const DeathCaseFormScreen(),
-        '/staff-home': (context) => const StaffHomeScreen(),
-      },
-      builder: (context, child) {
-        // Setup foreground notifications
-        NotificationService.handleForegroundNotifications(context);
-        return child!;
-      },
     );
   }
+}
+
+// Background notification handler (must be top-level function)
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print('Background notification received: ${message.notification?.title}');
 }
