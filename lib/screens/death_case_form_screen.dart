@@ -3,7 +3,6 @@ import '../models/enums.dart';
 import '../models/user_model.dart';
 import '../models/death_case_model.dart';
 import '../services/death_case_service.dart';
-import '../services/notification_service.dart'; // Add this import
 import '../theme/app_colors.dart';
 
 class DeathCaseFormScreen extends StatefulWidget {
@@ -28,12 +27,6 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
   Gender _selectedGender = Gender.lelaki;
   bool _isLoading = false;
 
-  // DEBUG VARIABLES
-  List<String> _debugMessages = [];
-  bool _showDebugPanel = false;
-  bool _notificationSent = false;
-  String? _notificationError;
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -52,28 +45,14 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
     super.dispose();
   }
 
-  // DEBUG METHOD
-  void _addDebugMessage(String message) {
-    setState(() {
-      _debugMessages.add('${DateTime.now().toLocal().toString().substring(11, 19)}: $message');
-    });
-    print('🔍 DEBUG: $message'); // Also print to console
-  }
-
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isLoading = true;
-      _debugMessages.clear();
-      _notificationSent = false;
-      _notificationError = null;
-      _showDebugPanel = true;
     });
 
     try {
-      _addDebugMessage('Starting form submission...');
-      
       final deathCase = DeathCaseModel(
         id: '', // Will be set by Firestore
         fullName: _fullNameController.text.trim(),
@@ -90,26 +69,13 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
         createdAt: DateTime.now(),
       );
 
-      _addDebugMessage('Death case model created');
-      _addDebugMessage('Saving to Firestore...');
-
-      // Create death case with debugging
-      final caseId = await _deathCaseService.createDeathCase(deathCase);
-      
-      _addDebugMessage('Case saved to Firestore with ID: ${caseId.substring(0, 8)}...');
-      
-      // Test notification directly here for debugging
-      await _testNotificationSending(deathCase.fullName, caseId, deathCase.serviceType);
+      // Create death case
+      await _deathCaseService.createDeathCase(deathCase);
 
       if (mounted) {
-        _addDebugMessage('Form submission completed successfully');
-        
-        // Show success dialog after a short delay to see debug info
-        await Future.delayed(const Duration(seconds: 2));
         _showSuccessDialog();
       }
     } catch (e) {
-      _addDebugMessage('ERROR: ${e.toString()}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -124,31 +90,6 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
       setState(() {
         _isLoading = false;
       });
-    }
-  }
-
-  // DEBUG NOTIFICATION TEST
-  Future<void> _testNotificationSending(String caseName, String caseId, ServiceType serviceType) async {
-    try {
-      _addDebugMessage('Testing notification system...');
-      
-      // Test direct notification call
-      await NotificationService.notifyStaffNewCase(
-        caseName: caseName,
-        caseId: caseId,
-        serviceType: serviceType,
-      );
-      
-      setState(() {
-        _notificationSent = true;
-      });
-      _addDebugMessage('✅ Notification sent successfully!');
-      
-    } catch (e) {
-      setState(() {
-        _notificationError = e.toString();
-      });
-      _addDebugMessage('❌ Notification failed: ${e.toString()}');
     }
   }
 
@@ -186,65 +127,13 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Your request has been successfully submitted. Our staff will contact you shortly.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 16,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // NOTIFICATION STATUS
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _notificationSent 
-                    ? AppColors.success.withOpacity(0.1)
-                    : AppColors.error.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _notificationSent 
-                      ? AppColors.success
-                      : AppColors.error,
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _notificationSent 
-                        ? Icons.notifications_active
-                        : Icons.notifications_off,
-                    color: _notificationSent 
-                        ? AppColors.success
-                        : AppColors.error,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _notificationSent 
-                          ? 'Staff notifications sent successfully'
-                          : 'Notification failed: ${_notificationError ?? 'Unknown error'}',
-                      style: TextStyle(
-                        color: _notificationSent 
-                            ? AppColors.success
-                            : AppColors.error,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        content: const Text(
+          'Your request has been successfully submitted. Our staff will contact you shortly.',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 16,
+            height: 1.4,
+          ),
         ),
         actions: [
           Container(
@@ -315,143 +204,26 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
             ),
           ),
         ),
-        // ADD DEBUG TOGGLE BUTTON
-        actions: [
-          IconButton(
-            onPressed: () {
-              setState(() {
-                _showDebugPanel = !_showDebugPanel;
-              });
-            },
-            icon: Icon(
-              Icons.bug_report,
-              color: _showDebugPanel ? AppColors.warning : AppColors.textMuted,
-            ),
-          ),
-        ],
       ),
-      body: Column(
-        children: [
-          // DEBUG PANEL
-          if (_showDebugPanel) _buildDebugPanel(),
-          
-          // MAIN CONTENT
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildServiceTypeHeader(),
-                    const SizedBox(height: 30),
-                    _buildFormSection(),
-                    const SizedBox(height: 40),
-                    _buildSubmitButton(),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // DEBUG PANEL WIDGET
-  Widget _buildDebugPanel() {
-    return Container(
-      width: double.infinity,
-      constraints: const BoxConstraints(maxHeight: 200),
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.warning,
-          width: 2,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.bug_report,
-                color: AppColors.warning,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'Debug Panel - Notification Status',
-                style: TextStyle(
-                  color: AppColors.warning,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    _debugMessages.clear();
-                  });
-                },
-                icon: const Icon(
-                  Icons.clear,
-                  color: AppColors.textMuted,
-                  size: 16,
-                ),
-              ),
+              _buildServiceTypeHeader(),
+              const SizedBox(height: 30),
+              _buildFormSection(),
+              const SizedBox(height: 40),
+              _buildSubmitButton(),
             ],
           ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceColor,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: _debugMessages.isEmpty
-                  ? const Text(
-                      'Submit form to see debug information...',
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 12,
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: _debugMessages.map((message) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Text(
-                            message,
-                            style: TextStyle(
-                              color: message.contains('✅') 
-                                  ? AppColors.success
-                                  : message.contains('❌') 
-                                      ? AppColors.error
-                                      : AppColors.textSecondary,
-                              fontSize: 11,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                        )).toList(),
-                      ),
-                    ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  // Your existing methods remain the same...
   Widget _buildServiceTypeHeader() {
     final color = _serviceType == ServiceType.fullService 
         ? AppColors.info 
@@ -521,9 +293,9 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
+                const Text(
                   'Please fill in the deceased information completely',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     color: AppColors.textMuted,
                     height: 1.3,
@@ -537,7 +309,6 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
     );
   }
 
-  // Rest of your existing methods (_buildFormSection, _buildTextField, etc.) remain the same...
   Widget _buildFormSection() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -912,9 +683,9 @@ class _DeathCaseFormScreenState extends State<DeathCaseFormScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  Text(
+                  const Text(
                     'Submitting Request...',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),

@@ -29,31 +29,30 @@ class RegistrationScreen extends StatelessWidget {
                 
                 const SizedBox(height: 80),
                 
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildSelectionCard(
-                        context: context,
-                        title: 'Family Member',
-                        subtitle: 'Register as a family member to request funeral services',
-                        icon: Icons.family_restroom_rounded,
-                        userType: UserType.waris,
-                        color: AppColors.info,
-                      ),
-                      
-                      const SizedBox(height: 24),
-                      
-                      _buildSelectionCard(
-                        context: context,
-                        title: 'Staff Member',
-                        subtitle: 'Register as a staff member to provide funeral services',
-                        icon: Icons.work_rounded,
-                        userType: UserType.staff,
-                        color: AppColors.accent,
-                      ),
-                    ],
-                  ),
+                // FIXED: Remove Expanded, use proper spacing instead
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildSelectionCard(
+                      context: context,
+                      title: 'Family Member',
+                      subtitle: 'Register as a family member to request funeral services',
+                      icon: Icons.family_restroom_rounded,
+                      userType: UserType.waris,
+                      color: AppColors.info,
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    _buildSelectionCard(
+                      context: context,
+                      title: 'Staff Member',
+                      subtitle: 'Register as a staff member to provide funeral services',
+                      icon: Icons.work_rounded,
+                      userType: UserType.staff,
+                      color: AppColors.accent,
+                    ),
+                  ],
                 ),
                 
                 const SizedBox(height: 40),
@@ -98,7 +97,7 @@ class RegistrationScreen extends StatelessWidget {
         const Text(
           'Welcome to I-Funeral',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 28,
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
             shadows: [
