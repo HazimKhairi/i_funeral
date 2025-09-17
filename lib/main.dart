@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:overlay_support/overlay_support.dart'; // Make sure this import exists
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'services/notification_service.dart';
+import 'services/firebase_cloud_messaging_service.dart';
 import 'screens/loading_screen.dart';
 import 'screens/registration_screen.dart';
 import 'screens/auth_screen.dart';
@@ -10,17 +11,37 @@ import 'screens/waris_home_screen.dart';
 import 'screens/death_case_form_screen.dart';
 import 'screens/staff_home_screen.dart';
 
-void main() async {
+// Background message handler (MUST be top-level function)
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print('📨 Background notification received: ${message.notification?.title}');
+  
+  // Handle background notification here if needed
+  if (message.data['type'] == 'new_case') {
+    print('🚨 New case notification in background: ${message.data['caseName']}');
+  }
+}
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
+  print('🚀 Starting I-Funeral App...');
+  
+  // Initialize Firebase FIRST
   await Firebase.initializeApp();
+  print('✅ Firebase initialized');
   
-  // Initialize Firebase Messaging
-  await NotificationService.initialize();
-  
-  // Set background message handler
+  // Set the background message handler
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  
+  // Initialize Firebase Cloud Messaging
+  await FirebaseCloudMessagingService.initialize();
+  print('✅ Firebase Cloud Messaging initialized');
+  
+  // Initialize Awesome Notifications (for local notifications)
+  await NotificationService.initializeNotifications();
+  print('✅ Awesome Notifications initialized');
   
   runApp(const MyApp());
 }
@@ -28,60 +49,71 @@ void main() async {
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
+  // Navigator key for navigation from notifications
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
-  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
   @override
   void initState() {
     super.initState();
-    _setupNotifications();
+    _initializeApp();
   }
 
-  void _setupNotifications() {
-    // Check if app was opened from notification
-    NotificationService.checkInitialNotification();
+  Future<void> _initializeApp() async {
+    print('📱 Initializing app components...');
     
-    // Handle notification tap when app is in background
-    NotificationService.handleNotificationTap();
+    // Start listening to notification events
+    NotificationService.startListeningNotificationEvents();
+    
+    // Check for initial notification (app opened from terminated state)
+    await _checkInitialNotification();
+    
+    print('✅ App initialization complete');
+  }
+
+  Future<void> _checkInitialNotification() async {
+    try {
+      // Check if app was opened from FCM notification
+      RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+      
+      if (initialMessage != null) {
+        print('📱 App opened from notification: ${initialMessage.data}');
+        
+        // Handle initial notification
+        if (initialMessage.data['type'] == 'new_case') {
+          print('🚨 Opening app from new case notification');
+          // Navigation will be handled after app is ready
+        }
+      }
+    } catch (e) {
+      print('❌ Error checking initial notification: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // IMPORTANT: Wrap with OverlaySupport.global() FIRST
-    return OverlaySupport.global(
-      child: MaterialApp(
-        title: 'I-Funeral',
-        debugShowCheckedModeBanner: false,
-        navigatorKey: navigatorKey,
-        theme: ThemeData(
-          useMaterial3: true,
-          fontFamily: 'Inter',
-        ),
-        home: const LoadingScreen(),
-        routes: {
-          '/loading': (context) => const LoadingScreen(),
-          '/registration': (context) => const RegistrationScreen(),
-          '/auth': (context) => const AuthScreen(),
-          '/waris-home': (context) => const WarisHomeScreen(),
-          '/death-case-form': (context) => const DeathCaseFormScreen(),
-          '/staff-home': (context) => const StaffHomeScreen(),
-        },
-        // Remove this builder if you have it
-        // builder: (context, child) {
-        //   NotificationService.handleForegroundNotifications(context);
-        //   return child!;
-        // },
+    return MaterialApp(
+      title: 'I-Funeral',
+      debugShowCheckedModeBanner: false,
+      navigatorKey: MyApp.navigatorKey,
+      theme: ThemeData(
+        useMaterial3: true,
+        fontFamily: 'Inter',
+        primarySwatch: Colors.green,
       ),
+      home: const LoadingScreen(),
+      routes: {
+        '/loading': (context) => const LoadingScreen(),
+        '/registration': (context) => const RegistrationScreen(),
+        '/auth': (context) => const AuthScreen(),
+        '/waris-home': (context) => const WarisHomeScreen(),
+        '/death-case-form': (context) => const DeathCaseFormScreen(),
+        '/staff-home': (context) => const StaffHomeScreen(),
+      },
     );
   }
-}
-
-// Background notification handler (must be top-level function)
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  print('Background notification received: ${message.notification?.title}');
 }

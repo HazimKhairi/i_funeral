@@ -19,44 +19,37 @@ class RegistrationScreen extends StatelessWidget {
       backgroundColor: AppColors.primaryGreen,
       body: SafeArea(
         child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              children: [
-                const SizedBox(height: 60),
-                
-                _buildHeader(),
-                
-                const SizedBox(height: 80),
-                
-                // FIXED: Remove Expanded, use proper spacing instead
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+          physics: const BouncingScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height - 
+                         MediaQuery.of(context).padding.top - 
+                         MediaQuery.of(context).padding.bottom,
+            ),
+            child: IntrinsicHeight(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
                   children: [
-                    _buildSelectionCard(
-                      context: context,
-                      title: 'Family Member',
-                      subtitle: 'Register as a family member to request funeral services',
-                      icon: Icons.family_restroom_rounded,
-                      userType: UserType.waris,
-                      color: AppColors.info,
-                    ),
+                    const SizedBox(height: 60),
                     
-                    const SizedBox(height: 24),
+                    _buildHeader(),
                     
-                    _buildSelectionCard(
-                      context: context,
-                      title: 'Staff Member',
-                      subtitle: 'Register as a staff member to provide funeral services',
-                      icon: Icons.work_rounded,
-                      userType: UserType.staff,
-                      color: AppColors.accent,
-                    ),
+                    const SizedBox(height: 80),
+                    
+                    // Selection Cards Section
+                    _buildSelectionSection(context),
+                    
+                    // Spacer to push content up when keyboard appears
+                    const Spacer(),
+                    
+                    // Footer section
+                    _buildFooter(),
+                    
+                    const SizedBox(height: 40),
                   ],
                 ),
-                
-                const SizedBox(height: 40),
-              ],
+              ),
             ),
           ),
         ),
@@ -118,6 +111,34 @@ class RegistrationScreen extends StatelessWidget {
             fontSize: 16,
             color: AppColors.textSecondary,
           ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSelectionSection(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildSelectionCard(
+          context: context,
+          title: 'Family Member',
+          subtitle: 'Register as a family member to request funeral services',
+          icon: Icons.family_restroom_rounded,
+          userType: UserType.waris,
+          color: AppColors.info,
+        ),
+        
+        const SizedBox(height: 24),
+        
+        _buildSelectionCard(
+          context: context,
+          title: 'Staff Member',
+          subtitle: 'Register as a staff member to provide funeral services',
+          icon: Icons.work_rounded,
+          userType: UserType.staff,
+          color: AppColors.accent,
         ),
       ],
     );
@@ -131,82 +152,189 @@ class RegistrationScreen extends StatelessWidget {
     required UserType userType,
     required Color color,
   }) {
-    return GestureDetector(
-      onTap: () => _navigateToAuth(context, userType),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(
+        minHeight: 120,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _navigateToAuth(context, userType),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: color.withOpacity(0.5),
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
+          splashColor: color.withOpacity(0.1),
+          highlightColor: color.withOpacity(0.05),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: color.withOpacity(0.5),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+                BoxShadow(
+                  color: color.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ],
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: color,
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 30,
+                    color: color,
+                  ),
+                ),
+                
+                const SizedBox(width: 20),
+                
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 6),
+                      
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textMuted,
+                          height: 1.4,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(width: 12),
+                
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: color,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(
-                  color: color,
-                  width: 2,
+      ),
+    );
+  }
+
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground.withOpacity(0.8),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.highlight.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  color: AppColors.highlight,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    'Collaboration with Pertubuhan Sentuhan Setia Kasih',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary.withOpacity(0.9),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: AppColors.highlight,
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
-              child: Icon(
-                icon,
-                size: 30,
-                color: color,
+              const SizedBox(width: 8),
+              Text(
+                'Secure & Trusted Service',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary.withOpacity(0.8),
+                  fontWeight: FontWeight.w400,
+                ),
               ),
-            ),
-            
-            const SizedBox(width: 20),
-            
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 6),
-                  
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textMuted,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
+              const SizedBox(width: 8),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: AppColors.highlight,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
-            ),
-            
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: color,
-              size: 20,
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }

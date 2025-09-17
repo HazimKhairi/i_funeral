@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:i_funeral/test_notification.dart';
 import '../models/enums.dart';
 import '../models/user_model.dart';
 import '../models/death_case_model.dart';
 import '../services/auth_service.dart';
 import '../services/death_case_service.dart';
-import '../services/notification_service.dart';
+import '../services/firebase_cloud_messaging_service.dart';
 import '../theme/app_colors.dart';
-
+import '../test_notification.dart';
 class StaffHomeScreen extends StatefulWidget {
   const StaffHomeScreen({super.key});
 
@@ -44,23 +43,28 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
         _isLoading = false;
       });
       
+      // Ensure FCM token is saved for this staff member
       if (user != null && user.userType == UserType.staff) {
-        await NotificationService.saveTokenToUser(user.id);
+        await FirebaseCloudMessagingService.saveTokenToCurrentUser(user.id);
+        print('✅ Staff FCM token updated: ${user.email}');
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
+      print('❌ Error loading current user: $e');
     }
   }
 
-  // Add method to show test notification dialog
-  void _showTestNotificationDialog() {
+  // Show FCM Test Dialog
+  void _showFCMTestDialog() {
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
-        child: const TestNotificationWidget(),
+        insetPadding: const EdgeInsets.all(16),
+        child: const FCMTestWidget(),
       ),
     );
   }
@@ -97,8 +101,9 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Request has been declined'),
+            content: Text('Request declined. Other staff can still accept this request.'),
             backgroundColor: AppColors.warning,
+            duration: Duration(seconds: 4),
           ),
         );
       }
@@ -163,12 +168,39 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             ),
           ],
         ),
-        content: const Text(
-          'Are you sure you want to decline this request?',
-          style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 16,
-          ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to decline this request?',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 16,
+              ),
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: AppColors.info,
+                  size: 20,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Other staff members can still accept this request.',
+                    style: TextStyle(
+                      color: AppColors.info,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -216,6 +248,12 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
         );
       }
     }
+  }
+
+  // Check if current staff has declined this case
+  bool _hasCurrentStaffDeclined(DeathCaseModel deathCase) {
+    if (_currentUser == null) return false;
+    return deathCase.declinedByStaff.contains(_currentUser!.id);
   }
 
   @override
@@ -312,6 +350,44 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
               ],
             ),
           ),
+          // FCM Test notification button
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: AppColors.error.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.error,
+                width: 1,
+              ),
+            ),
+            child: Stack(
+              children: [
+                IconButton(
+                  onPressed: _showFCMTestDialog,
+                  icon: const Icon(
+                    Icons.cloud_sync,
+                    color: AppColors.error,
+                    size: 20,
+                  ),
+                  tooltip: 'Test FCM - All Staff Notifications',
+                ),
+                // FCM indicator badge
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.error,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           Container(
             decoration: BoxDecoration(
               color: AppColors.surfaceColor,
@@ -361,7 +437,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
               children: [
                 Icon(Icons.notifications_active, size: 20),
                 SizedBox(width: 8),
-                Text('New Requests'),
+                Text('All Requests'),
               ],
             ),
           ),
@@ -403,7 +479,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
           ),
           const SizedBox(height: 8),
           const Text(
-            'New requests are waiting for your action',
+            'All pending requests - accept the ones you can handle',
             style: TextStyle(
               fontSize: 16,
               color: AppColors.textSecondary,
@@ -504,8 +580,10 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
     );
   }
 
-  // Rest of your existing methods remain the same...
   Widget _buildPendingCaseCard(DeathCaseModel deathCase) {
+    final hasDeclined = _hasCurrentStaffDeclined(deathCase);
+    final declineCount = deathCase.declinedByStaff.length;
+    
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 16),
@@ -513,7 +591,9 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.warning.withOpacity(0.5),
+          color: hasDeclined 
+              ? AppColors.error.withOpacity(0.5)
+              : AppColors.warning.withOpacity(0.5),
           width: 2,
         ),
         boxShadow: [
@@ -531,48 +611,93 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.warning.withOpacity(0.1),
+              color: hasDeclined 
+                  ? AppColors.error.withOpacity(0.1)
+                  : AppColors.warning.withOpacity(0.1),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(14),
                 topRight: Radius.circular(14),
               ),
             ),
-            child: Row(
+            child: Column(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'NEW REQUEST',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: hasDeclined ? AppColors.error : AppColors.warning,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        hasDeclined ? 'DECLINED BY YOU' : 'NEW REQUEST',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      deathCase.serviceType == ServiceType.fullService 
+                          ? Icons.home_work_rounded 
+                          : Icons.local_shipping_rounded,
+                      color: hasDeclined ? AppColors.error : AppColors.warning,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      deathCase.serviceType == ServiceType.fullService 
+                          ? 'Full Service' 
+                          : 'Delivery Only',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: hasDeclined ? AppColors.error : AppColors.warning,
+                      ),
+                    ),
+                  ],
+                ),
+                
+                // Show decline status if applicable
+                if (hasDeclined) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.info.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.info.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.people_outline,
+                          color: AppColors.info,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            declineCount > 1
+                                ? 'Waiting for other staff to accept ($declineCount staff declined)'
+                                : 'Waiting for other staff to accept (You declined)',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.info,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const Spacer(),
-                Icon(
-                  deathCase.serviceType == ServiceType.fullService 
-                      ? Icons.home_work_rounded 
-                      : Icons.local_shipping_rounded,
-                  color: AppColors.warning,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  deathCase.serviceType == ServiceType.fullService 
-                      ? 'Full Service' 
-                      : 'Delivery Only',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.warning,
-                  ),
-                ),
+                ],
               ],
             ),
           ),
@@ -589,10 +714,12 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                     Expanded(
                       child: Text(
                         deathCase.fullName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: hasDeclined 
+                              ? AppColors.textPrimary.withOpacity(0.7)
+                              : AppColors.textPrimary,
                         ),
                       ),
                     ),
@@ -627,6 +754,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                       : Icons.female_rounded,
                   label: 'Gender',
                   value: deathCase.gender == Gender.lelaki ? 'Male' : 'Female',
+                  isDeclined: hasDeclined,
                 ),
                 
                 const SizedBox(height: 12),
@@ -635,6 +763,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                   icon: Icons.medical_information_rounded,
                   label: 'Cause of Death',
                   value: deathCase.causeOfDeath,
+                  isDeclined: hasDeclined,
                 ),
                 
                 const SizedBox(height: 12),
@@ -643,6 +772,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                   icon: Icons.location_on_rounded,
                   label: 'Address',
                   value: deathCase.address,
+                  isDeclined: hasDeclined,
                 ),
                 
                 if (deathCase.deliveryLocation != null) ...[
@@ -651,6 +781,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                     icon: Icons.local_shipping_rounded,
                     label: 'Delivery Location',
                     value: deathCase.deliveryLocation!,
+                    isDeclined: hasDeclined,
                   ),
                 ],
                 
@@ -660,82 +791,139 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
                   icon: Icons.access_time_rounded,
                   label: 'Request Time',
                   value: _formatDateTime(deathCase.createdAt),
+                  isDeclined: hasDeclined,
                 ),
                 
                 const SizedBox(height: 24),
                 
                 // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.error.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: ElevatedButton.icon(
-                          onPressed: () => _handleDeclineCase(deathCase.id),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.error,
-                            foregroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            elevation: 0,
+                if (hasDeclined) ...[
+                  // Show info that this staff declined
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.error.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          icon: const Icon(Icons.close_rounded, size: 20),
-                          label: const Text(
-                            'Decline',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: AppColors.error,
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'You declined this request',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.error,
+                                ),
+                              ),
+                              Text(
+                                'Other staff members can still accept it',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  // Show accept/decline buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.error.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton.icon(
+                            onPressed: () => _handleDeclineCase(deathCase.id),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.error,
+                              foregroundColor: AppColors.textPrimary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              elevation: 0,
+                            ),
+                            icon: const Icon(Icons.close_rounded, size: 20),
+                            label: const Text(
+                              'Decline',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.success.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: ElevatedButton.icon(
-                          onPressed: () => _handleAcceptCase(deathCase.id),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.success,
-                            foregroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            elevation: 0,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.success.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
                           ),
-                          icon: const Icon(Icons.check_rounded, size: 20),
-                          label: const Text(
-                            'Accept',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _handleAcceptCase(deathCase.id),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              foregroundColor: AppColors.textPrimary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              elevation: 0,
+                            ),
+                            icon: const Icon(Icons.check_rounded, size: 20),
+                            label: const Text(
+                              'Accept',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -932,6 +1120,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
     required IconData icon,
     required String label,
     required String value,
+    bool isDeclined = false,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -945,7 +1134,9 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
           child: Icon(
             icon,
             size: 16,
-            color: AppColors.textMuted,
+            color: isDeclined 
+                ? AppColors.textMuted.withOpacity(0.5)
+                : AppColors.textMuted,
           ),
         ),
         const SizedBox(width: 12),
@@ -955,18 +1146,22 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             children: [
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: AppColors.textMuted,
+                  color: isDeclined 
+                      ? AppColors.textMuted.withOpacity(0.6)
+                      : AppColors.textMuted,
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.textPrimary,
+                  color: isDeclined 
+                      ? AppColors.textPrimary.withOpacity(0.6)
+                      : AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1005,7 +1200,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
           ),
           const SizedBox(height: 20),
           Text(
-            'No New Requests',
+            'No Pending Requests',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,

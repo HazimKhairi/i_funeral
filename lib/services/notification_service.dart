@@ -1,230 +1,300 @@
-import 'dart:convert';
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:isolate';
+import 'dart:ui';
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:overlay_support/overlay_support.dart';
 import '../models/enums.dart';
+import '../main.dart';
 
 class NotificationService {
-  static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  static ReceivedAction? initialAction;
+  static ReceivePort? receivePort;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Initialize FCM
-  static Future<void> initialize() async {
-    NotificationSettings settings = await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
+  /// Initialize Awesome Notifications
+  static Future<void> initializeNotifications() async {
+    await AwesomeNotifications().initialize(
+      null, // Use default app icon
+      [
+        // Notification channel for new death cases
+        NotificationChannel(
+          channelKey: 'new_case_channel',
+          channelName: 'New Death Cases',
+          channelDescription: 'Notifications for new death case requests',
+          defaultColor: const Color(0xFF2E8B57),
+          ledColor: const Color(0xFF2E8B57),
+          playSound: true,
+          onlyAlertOnce: false,
+          importance: NotificationImportance.High,
+          defaultPrivacy: NotificationPrivacy.Private,
+          enableVibration: true,
+          enableLights: true,
+          groupAlertBehavior: GroupAlertBehavior.Children,
+        ),
+        
+        // General notifications channel
+        NotificationChannel(
+          channelKey: 'general_channel',
+          channelName: 'General Notifications',
+          channelDescription: 'General app notifications',
+          defaultColor: const Color(0xFF33B5E5),
+          ledColor: const Color(0xFF33B5E5),
+          playSound: true,
+          onlyAlertOnce: false,
+          importance: NotificationImportance.Default,
+          defaultPrivacy: NotificationPrivacy.Private,
+        ),
+      ],
+      debug: true,
     );
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('User granted permission');
-      
-      String? token = await _messaging.getToken();
-      print('FCM Token: $token');
-      
-      _messaging.onTokenRefresh.listen((newToken) {
-        print('New FCM Token: $newToken');
-      });
-    }
+    // Get initial notification action
+    initialAction = await AwesomeNotifications()
+        .getInitialNotificationAction(removeFromActionEvents: false);
+    
+    // Initialize isolate receive port
+    await initializeIsolateReceivePort();
   }
 
-  // Show notification overlay (appears from top)
- // Show notification overlay (appears from top)
-static void showNotificationOverlay({
-  required String title,
-  required String body,
-}) {
-  showOverlayNotification(
-    (context) {
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2D2D44),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Material( // ADD THIS MATERIAL WRAPPER
-          color: Colors.transparent,
-          child: ListTile(
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF50C878),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.notifications_active,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            title: Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-            subtitle: Text(
-              body,
-              style: const TextStyle(
-                color: Color(0xFFB0B0B0),
-                fontSize: 12,
-              ),
-            ),
-            trailing: const Icon(
-              Icons.chevron_right,
-              color: Color(0xFF50C878),
-            ),
-          ),
-        ),
-      );
-    },
-    duration: const Duration(seconds: 4),
-    position: NotificationPosition.top,
-  );
-}
+  /// Initialize isolate receive port for background notifications
+  static Future<void> initializeIsolateReceivePort() async {
+    receivePort = ReceivePort('Notification action port in main isolate')
+      ..listen((silentData) => onActionReceivedImplementationMethod(silentData));
 
-  // Save FCM token to user document
-  static Future<void> saveTokenToUser(String userId) async {
-    try {
-      String? token = await _messaging.getToken();
-      if (token != null) {
-        await _firestore.collection('users').doc(userId).update({
-          'fcmToken': token,
-          'lastTokenUpdate': FieldValue.serverTimestamp(),
-        });
-        print('FCM token saved for user: $userId');
+    IsolateNameServer.registerPortWithName(
+        receivePort!.sendPort, 'notification_action_port');
+  }
+
+  /// Start listening to notification events
+  static Future<void> startListeningNotificationEvents() async {
+    AwesomeNotifications().setListeners(
+      onActionReceivedMethod: onActionReceivedMethod,
+    );
+  }
+
+  /// Handle notification action received
+  @pragma('vm:entry-point')
+  static Future<void> onActionReceivedMethod(ReceivedAction receivedAction) async {
+    if (receivedAction.actionType == ActionType.SilentAction ||
+        receivedAction.actionType == ActionType.SilentBackgroundAction) {
+      // Handle background actions
+      print('Notification action received: ${receivedAction.payload}');
+    } else {
+      // Handle foreground actions
+      if (receivePort == null) {
+        print('onActionReceivedMethod called inside parallel isolate.');
+        SendPort? sendPort =
+            IsolateNameServer.lookupPortByName('notification_action_port');
+
+        if (sendPort != null) {
+          print('Redirecting execution to main isolate process.');
+          sendPort.send(receivedAction);
+          return;
+        }
       }
-    } catch (e) {
-      print('Error saving FCM token: $e');
+
+      return onActionReceivedImplementationMethod(receivedAction);
     }
   }
 
-  // MAIN NOTIFICATION METHOD - Send to all staff
+  /// Implementation method for handling notification actions
+  static Future<void> onActionReceivedImplementationMethod(
+      ReceivedAction receivedAction) async {
+    
+    // Handle different notification types
+    if (receivedAction.payload != null) {
+      final payload = receivedAction.payload!;
+      
+      // Handle new case notification
+      if (payload['type'] == 'new_case') {
+        // Navigate to staff home if user is staff
+        MyApp.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          '/staff-home',
+          (route) => route.isFirst,
+        );
+      }
+    }
+  }
+
+  /// Request notification permissions
+  static Future<bool> requestNotificationPermissions() async {
+    bool isAllowed = await AwesomeNotifications().isNotificationAllowed();
+    if (!isAllowed) {
+      isAllowed = await displayNotificationRationale();
+    }
+    return isAllowed;
+  }
+
+  /// Display notification permission dialog
+  static Future<bool> displayNotificationRationale() async {
+    bool userAuthorized = false;
+    BuildContext? context = MyApp.navigatorKey.currentContext;
+    
+    if (context != null) {
+      await showDialog(
+        context: context,
+        builder: (BuildContext ctx) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(
+                  Icons.notifications_active,
+                  color: Color(0xFF2E8B57),
+                  size: 28,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Enable Notifications',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            content: const Text(
+              'Allow I-Funeral to send you notifications about new death case requests and important updates.',
+              style: TextStyle(
+                color: Color(0xFFE0E0E0),
+                fontSize: 16,
+                height: 1.4,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                },
+                child: const Text(
+                  'Not Now',
+                  style: TextStyle(
+                    color: Color(0xFFB0B0B0),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF2E8B57).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextButton(
+                  onPressed: () async {
+                    userAuthorized = true;
+                    Navigator.of(ctx).pop();
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E8B57),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                  child: const Text(
+                    'Allow',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+    
+    return userAuthorized && await AwesomeNotifications().requestPermissionToSendNotifications();
+  }
+
+  /// MAIN METHOD: Notify all staff about new death case
   static Future<void> notifyStaffNewCase({
     required String caseName,
     required String caseId,
     required ServiceType serviceType,
   }) async {
     try {
-      print('🔔 Sending notification for case: $caseName');
-      
-      // Show overlay notification immediately if in app
-      showNotificationOverlay(
-        title: 'New Application 📋',
-        body: 'New application for $caseName (${serviceType.displayName})',
+      print('🔔 Sending notification for new case: $caseName');
+
+      // Check notification permissions
+      bool isAllowed = await requestNotificationPermissions();
+      if (!isAllowed) {
+        print('❌ Notification permission denied');
+        return;
+      }
+
+      // Create notification for new death case
+      await AwesomeNotifications().createNotification(
+        content: NotificationContent(
+          id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+          channelKey: 'new_case_channel',
+          title: '🚨 New Death Case Request',
+          body: 'New application for $caseName (${serviceType.displayName})',
+          bigPicture: 'asset://assets/images/logo.png',
+          largeIcon: 'asset://assets/images/logo.png',
+          notificationLayout: NotificationLayout.BigText,
+          category: NotificationCategory.Social,
+          wakeUpScreen: true,
+          fullScreenIntent: true,
+          autoDismissible: false,
+          backgroundColor: const Color(0xFF2E8B57),
+          payload: {
+            'type': 'new_case',
+            'caseId': caseId,
+            'caseName': caseName,
+            'serviceType': serviceType.value,
+          },
+        ),
+        actionButtons: [
+          NotificationActionButton(
+            key: 'VIEW_CASE',
+            label: 'View Request',
+            actionType: ActionType.Default,
+            color: const Color(0xFF2E8B57),
+          ),
+          NotificationActionButton(
+            key: 'DISMISS',
+            label: 'Dismiss',
+            actionType: ActionType.DismissAction,
+            isDangerousOption: false,
+          ),
+        ],
       );
 
-      // Get all staff users with FCM tokens
-      QuerySnapshot staffQuery = await _firestore
-          .collection('users')
-          .where('userType', isEqualTo: 'staff')
-          .get();
-
-      print('Found ${staffQuery.docs.length} staff members');
-
-      // Send notification to each staff
-      for (DocumentSnapshot staffDoc in staffQuery.docs) {
-        String? token = staffDoc.get('fcmToken');
-        print('Staff: ${staffDoc.id}, Token: ${token != null ? 'Available' : 'None'}');
-        
-        if (token != null) {
-          // Send actual FCM notification to staff
-          await _sendPushNotificationToStaff(
-            token: token,
-            title: 'New Booking Request',
-            body: 'New application for $caseName (${serviceType.displayName})',
-            data: {
-              'type': 'new_case',
-              'caseId': caseId,
-              'caseName': caseName,
-              'serviceType': serviceType.value,
-            },
-          );
-        }
-      }
-      
-      // Also save notification to Firestore for staff to see later
+      // Save notification to Firestore for all staff
       await _saveNotificationToFirestore(
-        title: 'New Booking Request',
+        title: 'New Death Case Request',
         body: 'New application for $caseName (${serviceType.displayName})',
         data: {
           'type': 'new_case',
           'caseId': caseId,
           'caseName': caseName,
           'serviceType': serviceType.value,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
         },
         userType: UserType.staff,
       );
-      
-      print('✅ Notifications sent successfully');
+
+      print('✅ Notification sent successfully for case: $caseName');
     } catch (e) {
-      print('❌ Error notifying staff: $e');
+      print('❌ Error sending notification: $e');
     }
   }
 
-  // Send push notification to staff via FCM
-  static Future<void> _sendPushNotificationToStaff({
-    required String token,
-    required String title,
-    required String body,
-    Map<String, dynamic>? data,
-  }) async {
-    try {
-      print('📤 Push notification sent to $token: $title - $body');
-      
-      // Prepare notification message
-      final message = {
-        'notification': {
-          'title': title,
-          'body': body,
-        },
-        'data': data ?? {},
-        'token': token,
-      };
-      
-      // Send FCM message using Firebase Cloud Messaging HTTP v1 API
-      // This requires a server-side implementation or Firebase Cloud Functions
-      // For this implementation, we'll use a direct HTTP request to the FCM API
-      
-      // In a real production app, you would implement this in a secure backend service
-      // or use Firebase Cloud Functions to send the notification
-      
-      // Example of how to implement with Firebase Cloud Functions:
-      // await FirebaseFunctions.instance.httpsCallable('sendPushNotification').call({
-      //   'token': token,
-      //   'title': title,
-      //   'body': body,
-      //   'data': data,
-      // });
-      
-      // For now, we'll use Firebase Messaging directly for foreground notifications
-      // and rely on the system notification channel for background notifications
-      print('Sending FCM notification to token: $token');
-      print('Title: $title');
-      print('Body: $body');
-      print('Data: $data');
-      
-      // This will trigger the onMessage handler for foreground notifications
-      // which will show the notification overlay
-      // Background notifications are handled by the system
-    } catch (e) {
-      print('Error sending push notification: $e');
-    }
-  }
-  
-  // Save notification to Firestore for persistence
+  /// Save notification to Firestore for persistence
   static Future<void> _saveNotificationToFirestore({
     required String title,
     required String body,
@@ -232,7 +302,6 @@ static void showNotificationOverlay({
     required UserType userType,
   }) async {
     try {
-      // Create a notification document in Firestore
       await _firestore.collection('notifications').add({
         'title': title,
         'body': body,
@@ -240,84 +309,142 @@ static void showNotificationOverlay({
         'userType': userType.value,
         'read': false,
         'createdAt': FieldValue.serverTimestamp(),
+        'targetAudience': 'all_staff', // Indicate this is for all staff
       });
       
       print('📝 Notification saved to Firestore: $title');
     } catch (e) {
-      print('Error saving notification to Firestore: $e');
+      print('❌ Error saving notification to Firestore: $e');
     }
   }
 
-  // Handle foreground notifications (from Firebase)
-  static void handleForegroundNotifications(BuildContext context) {
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('Received foreground notification: ${message.notification?.title}');
-      
-      if (message.notification != null) {
-        showNotificationOverlay(
-          title: message.notification!.title ?? 'I-Funeral',
-          body: message.notification!.body ?? 'New notification',
-        );
-      }
-    });
-  }
-
-  // Show a test notification (for debugging and testing)
-  static Future<void> showTestNotification({
-    required String title,
-    required String body,
-    required UserType userType,
+  /// Send case status update notification
+  static Future<void> notifyCaseStatusUpdate({
+    required String caseName,
+    required String caseId,
+    required CaseStatus status,
+    required String recipientUserId,
   }) async {
     try {
-      // Show overlay notification
-      showNotificationOverlay(
-        title: title,
-        body: body,
+      bool isAllowed = await requestNotificationPermissions();
+      if (!isAllowed) return;
+
+      String statusText = '';
+      String emoji = '';
+      Color notificationColor = const Color(0xFF33B5E5);
+
+      switch (status) {
+        case CaseStatus.accepted:
+          statusText = 'accepted';
+          emoji = '✅';
+          notificationColor = const Color(0xFF00C851);
+          break;
+        case CaseStatus.declined:
+          statusText = 'declined';
+          emoji = '❌';
+          notificationColor = const Color(0xFFFF4444);
+          break;
+        case CaseStatus.completed:
+          statusText = 'completed';
+          emoji = '🎉';
+          notificationColor = const Color(0xFF33B5E5);
+          break;
+        default:
+          return;
+      }
+
+      await AwesomeNotifications().createNotification(
+        content: NotificationContent(
+          id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+          channelKey: 'general_channel',
+          title: '$emoji Case $statusText',
+          body: 'Your request for $caseName has been $statusText',
+          notificationLayout: NotificationLayout.Default,
+          category: NotificationCategory.Status,
+          backgroundColor: notificationColor,
+          payload: {
+            'type': 'status_update',
+            'caseId': caseId,
+            'caseName': caseName,
+            'status': status.value,
+          },
+        ),
       );
-      
-      // Save notification to Firestore
-      await _saveNotificationToFirestore(
-        title: title,
-        body: body,
-        data: {
-          'type': 'test',
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-        },
-        userType: userType,
+
+      print('✅ Status update notification sent for case: $caseName');
+    } catch (e) {
+      print('❌ Error sending status update notification: $e');
+    }
+  }
+
+  /// Send test notification
+  static Future<void> sendTestNotification({
+    required String title,
+    required String body,
+  }) async {
+    try {
+      bool isAllowed = await requestNotificationPermissions();
+      if (!isAllowed) return;
+
+      await AwesomeNotifications().createNotification(
+        content: NotificationContent(
+          id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+          channelKey: 'general_channel',
+          title: title,
+          body: body,
+          notificationLayout: NotificationLayout.Default,
+          category: NotificationCategory.Message,
+          payload: {
+            'type': 'test',
+            'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
+          },
+        ),
       );
-      
+
       print('✅ Test notification sent successfully');
     } catch (e) {
       print('❌ Error sending test notification: $e');
     }
   }
 
-  // Handle notification tap when app is closed/background
-  static void handleNotificationTap() {
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('Notification tapped: ${message.data}');
-      
-      if (message.data['type'] == 'new_case') {
-        print('Navigate to case: ${message.data['caseId']}');
-      }
+  /// Cancel all notifications
+  static Future<void> cancelAllNotifications() async {
+    await AwesomeNotifications().cancelAll();
+    print('🗑️ All notifications cancelled');
+  }
+
+  /// Cancel specific notification
+  static Future<void> cancelNotification(int notificationId) async {
+    await AwesomeNotifications().cancel(notificationId);
+    print('🗑️ Notification $notificationId cancelled');
+  }
+
+  /// Get notification history from Firestore
+  static Stream<List<Map<String, dynamic>>> getNotificationHistory(UserType userType) {
+    return _firestore
+        .collection('notifications')
+        .where('userType', isEqualTo: userType.value)
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
     });
   }
 
-  // Check if app was opened from notification (terminated state)
-  static Future<void> checkInitialNotification() async {
-    RemoteMessage? initialMessage = await _messaging.getInitialMessage();
-    
-    if (initialMessage != null) {
-      print('App opened from notification: ${initialMessage.data}');
-      
-      if (initialMessage.data['type'] == 'new_case') {
-        print('Navigate to case: ${initialMessage.data['caseId']}');
-      }
+  /// Mark notification as read
+  static Future<void> markNotificationAsRead(String notificationId) async {
+    try {
+      await _firestore.collection('notifications').doc(notificationId).update({
+        'read': true,
+        'readAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('❌ Error marking notification as read: $e');
     }
   }
-}
-
-// Background notification handler (must be top-level function)
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  print('Background notification received: ${message.notification?.title}');
 }

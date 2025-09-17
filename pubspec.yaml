@@ -28,6 +28,7 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  awesome_notifications: ^0.10.1
   cloud_firestore: ^6.0.0
   cupertino_icons: ^1.0.8
   firebase_auth: ^6.0.1
@@ -35,6 +36,7 @@ dependencies:
   firebase_messaging: ^16.0.1
   flutter:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.4
   flutter_local_notifications: ^19.4.1
   overlay_support: ^2.1.0
   provider: ^6.1.5+1
@@ -45,6 +47,29 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21
+  
+  # Web configuration
+  web:
+    generate: true
+    image_path: "assets/images/logo.png"
+    background_color: "#2E8B57"  # Your primary green color
+    theme_color: "#2E8B57"
+  
+  # Windows configuration
+  windows:
+    generate: true
+    image_path: "assets/images/logo.png"
+    icon_size: 48
+  
+  # macOS configuration
+  macos:
+    generate: true
+    image_path: "assets/images/logo.png"
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 # The following section is specific to Flutter packages.
