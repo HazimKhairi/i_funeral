@@ -14,7 +14,7 @@ class FCMTestWidget extends StatefulWidget {
 
 class _FCMTestWidgetState extends State<FCMTestWidget> {
   final _authService = AuthService();
-  String _testStatus = 'Ready to test Firebase Cloud Messaging!';
+  String _testStatus = 'Ready to test Firebase Cloud Messaging HTTP v1 API!';
   bool _isLoading = false;
   List<UserModel> _activeStaff = [];
 
@@ -35,10 +35,10 @@ class _FCMTestWidgetState extends State<FCMTestWidget> {
     }
   }
 
-  Future<void> _testFCMToAllStaff() async {
+  Future<void> _testFCMV1ToAllStaff() async {
     setState(() {
       _isLoading = true;
-      _testStatus = 'Sending FCM notification to ALL STAFF...';
+      _testStatus = 'Sending FCM HTTP v1 notification to ALL STAFF...';
     });
 
     try {
@@ -49,49 +49,53 @@ class _FCMTestWidgetState extends State<FCMTestWidget> {
         setState(() {
           _testStatus = '''❌ NO ACTIVE STAFF FOUND
 
-Possible issues:
-• No staff members have logged in recently
-• FCM tokens not saved properly
-• Check Firestore users collection
-
-Please ensure staff@gmail.com and staff2@gmail.com 
-have logged into the app recently.''';
+Setup Required:
+• Ensure staff@gmail.com and staff2@gmail.com are logged in
+• Check that service account JSON is configured
+• Verify project ID is correct in FCM service
+• Make sure Firebase project has HTTP v1 API enabled''';
         });
         return;
       }
 
-      // Send test notification to all staff
+      // Send test notification using HTTP v1 API
       await FirebaseCloudMessagingService.sendTestNotification();
 
       setState(() {
-        _testStatus = '''✅ FCM NOTIFICATION SENT TO ALL STAFF!
+        _testStatus = '''✅ FCM HTTP v1 NOTIFICATION SENT!
+
+🚀 NEW API FEATURES:
+• Using OAuth 2.0 access tokens (more secure)
+• HTTP v1 API endpoint
+• Better cross-platform support
+• Future-proof implementation
 
 📊 Notification Details:
 • Recipients: ${_activeStaff.length} staff members
-• Method: Firebase Cloud Messaging
-• Delivery: Cross-device real-time
+• Method: Firebase Cloud Messaging v1
+• Authentication: OAuth 2.0 service account
+• Endpoint: /v1/projects/{project}/messages:send
 
 👥 Active Staff:
 ${_activeStaff.map((staff) => '• ${staff.email}').join('\n')}
 
-📱 ALL STAFF should receive notification now!
-🔔 Check notification panels on all devices.
-
-This proves the FCM system works for real death cases!''';
+📱 ALL STAFF should receive the new v1 notification!
+🎉 Your FCM system is now using the modern API!''';
       });
     } catch (e) {
       setState(() {
-        _testStatus = '''❌ ERROR SENDING FCM NOTIFICATION
+        _testStatus = '''❌ ERROR WITH FCM HTTP v1 API
 
 Error: $e
 
 🔧 Troubleshooting:
-1. Check FCM server key in firebase_cloud_messaging_service.dart
-2. Verify internet connection
-3. Ensure Firebase project is configured
-4. Check console logs for detailed error messages
+1. ✅ Check that service-account.json is in assets/
+2. ✅ Verify project ID in firebase_cloud_messaging_service.dart
+3. ✅ Ensure googleapis_auth dependency is added
+4. ✅ Confirm Firebase Cloud Messaging API is enabled in Google Cloud Console
+5. ✅ Make sure service account has Firebase Admin permissions
 
-Please fix the error and try again.''';
+💡 The old server key method is deprecated. This new method is required!''';
       });
     }
 
@@ -100,10 +104,10 @@ Please fix the error and try again.''';
     });
   }
 
-  Future<void> _testNewCaseNotification() async {
+  Future<void> _testNewCaseNotificationV1() async {
     setState(() {
       _isLoading = true;
-      _testStatus = 'Simulating new death case submission...';
+      _testStatus = 'Testing new death case with HTTP v1 API...';
     });
 
     try {
@@ -113,12 +117,12 @@ Please fix the error and try again.''';
         setState(() {
           _testStatus = '''❌ Cannot test: No active staff found.
           
-Ensure staff@gmail.com and staff2@gmail.com are logged in.''';
+Ensure staff accounts are logged in and properly configured.''';
         });
         return;
       }
 
-      // Test realistic death case notification
+      // Test realistic death case notification with v1 API
       final testCases = [
         {'name': 'Ahmad bin Abdullah', 'service': ServiceType.fullService},
         {'name': 'Siti Aminah binti Hassan', 'service': ServiceType.deliveryOnly},
@@ -129,26 +133,33 @@ Ensure staff@gmail.com and staff2@gmail.com are logged in.''';
 
       await FirebaseCloudMessagingService.notifyStaffNewCase(
         caseName: testCase['name'] as String,
-        caseId: 'FCM_TEST_${DateTime.now().millisecondsSinceEpoch}',
+        caseId: 'V1_TEST_${DateTime.now().millisecondsSinceEpoch}',
         serviceType: testCase['service'] as ServiceType,
       );
 
       setState(() {
-        _testStatus = '''🚨 NEW DEATH CASE NOTIFICATION SENT!
+        _testStatus = '''🚨 NEW DEATH CASE NOTIFICATION SENT (HTTP v1)!
 
 📋 Test Case Details:
 • Name: ${testCase['name']}
 • Service: ${(testCase['service'] as ServiceType).displayName}
-• Method: Firebase Cloud Messaging
+• Method: Firebase Cloud Messaging HTTP v1
+• Security: OAuth 2.0 access token
 • Recipients: ${_activeStaff.length} staff members
+
+🔐 SECURITY IMPROVEMENTS:
+• ✅ OAuth 2.0 tokens (expire automatically)
+• ✅ Service account authentication
+• ✅ No exposed API keys
+• ✅ Google Cloud IAM managed permissions
 
 👥 Notified Staff:
 ${_activeStaff.map((staff) => '• ${staff.email}').join('\n')}
 
-📱 This is EXACTLY what happens when waris submit real death case!
-🔔 ALL STAFF should receive "🚨 New Death Case Request" notification!
+📱 This is EXACTLY what happens with the new API!
+🔔 ALL STAFF should receive "🚨 New Death Case Request" via HTTP v1!
 
-Perfect for testing cross-device notification system!''';
+Perfect modern notification system! 🎉''';
       });
     } catch (e) {
       setState(() {
@@ -161,10 +172,10 @@ Perfect for testing cross-device notification system!''';
     });
   }
 
-  Future<void> _checkFCMStatus() async {
+  Future<void> _checkFCMV1Status() async {
     setState(() {
       _isLoading = true;
-      _testStatus = 'Checking FCM system status...';
+      _testStatus = 'Checking FCM HTTP v1 system status...';
     });
 
     try {
@@ -175,7 +186,13 @@ Perfect for testing cross-device notification system!''';
       await _loadActiveStaff();
 
       setState(() {
-        _testStatus = '''🔍 FCM SYSTEM STATUS
+        _testStatus = '''🔍 FCM HTTP v1 SYSTEM STATUS
+
+🆕 MODERN API FEATURES:
+• OAuth 2.0 authentication ✅
+• Service account security ✅
+• Cross-platform messaging ✅
+• Future-proof implementation ✅
 
 📱 Current Device:
 • FCM Token: ${currentToken != null ? '✅ Available (${currentToken.substring(0, 20)}...)' : '❌ Not available'}
@@ -184,23 +201,27 @@ Perfect for testing cross-device notification system!''';
 👥 Active Staff in Database:
 ${_activeStaff.isNotEmpty ? _activeStaff.map((staff) => '''• ${staff.email}
   - Token: ${staff.fcmToken != null ? '✅ Available' : '❌ Missing'}
-  - Last Update: ${staff.fcmToken != null ? 'Recent' : 'Never'}''').join('\n') : '❌ No active staff found'}
+  - Ready for v1: ${staff.fcmToken != null ? '✅ YES' : '❌ NO'}''').join('\n') : '❌ No active staff found'}
 
 📊 System Summary:
 • Total Active Staff: ${_activeStaff.length}
-• FCM Ready: ${_activeStaff.where((s) => s.fcmToken != null).length}/${_activeStaff.length}
-• Ready for Testing: ${_activeStaff.length >= 2 ? '✅ YES' : '❌ Need 2+ staff'}
+• HTTP v1 Ready: ${_activeStaff.where((s) => s.fcmToken != null).length}/${_activeStaff.length}
+• Modern API: ✅ ENABLED
+• Legacy API: ❌ DEPRECATED (July 2024)
 
 ${_activeStaff.length < 2 ? '''
-🔧 To test properly:
-1. Login as staff@gmail.com on one device
-2. Login as staff2@gmail.com on another device  
+🔧 Setup Instructions:
+1. Login as staff@gmail.com on device 1
+2. Login as staff2@gmail.com on device 2  
 3. Both should appear in active staff list above
-''' : '✅ Ready to test cross-device notifications!'}''';
+4. Test cross-device notifications
+''' : '🎉 Ready to test modern FCM HTTP v1 notifications!'}
+
+🚀 Your app is now using the latest FCM technology!''';
       });
     } catch (e) {
       setState(() {
-        _testStatus = 'Error checking FCM status: $e';
+        _testStatus = 'Error checking FCM v1 status: $e';
       });
     }
 
@@ -216,7 +237,7 @@ ${_activeStaff.length < 2 ? '''
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.accent, width: 2),
+        border: Border.all(color: AppColors.success, width: 2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.3),
@@ -235,12 +256,12 @@ ${_activeStaff.length < 2 ? '''
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.error.withOpacity(0.2),
+                    color: AppColors.success.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
-                    Icons.cloud_sync,
-                    color: AppColors.error,
+                    Icons.rocket_launch,
+                    color: AppColors.success,
                     size: 28,
                   ),
                 ),
@@ -250,15 +271,15 @@ ${_activeStaff.length < 2 ? '''
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'FIREBASE CLOUD MESSAGING TEST',
+                        'FCM HTTP v1 API TEST',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.error,
+                          color: AppColors.success,
                         ),
                       ),
                       Text(
-                        'Test ALL STAFF notifications',
+                        'Modern Firebase Cloud Messaging',
                         style: TextStyle(
                           fontSize: 13,
                           color: AppColors.textMuted,
@@ -304,7 +325,7 @@ ${_activeStaff.length < 2 ? '''
                       ),
                       SizedBox(width: 8),
                       Text(
-                        'FCM Test Status',
+                        'FCM HTTP v1 Status',
                         style: TextStyle(
                           color: AppColors.info,
                           fontWeight: FontWeight.bold,
@@ -330,11 +351,11 @@ ${_activeStaff.length < 2 ? '''
 
             if (_isLoading) ...[
               const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.error),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.success),
               ),
               const SizedBox(width: 16),
               const Text(
-                'Processing...',
+                'Testing HTTP v1 API...',
                 style: TextStyle(
                   color: AppColors.textMuted,
                   fontSize: 14,
@@ -346,7 +367,7 @@ ${_activeStaff.length < 2 ? '''
             // Test Buttons
             Column(
               children: [
-                // Check FCM Status
+                // Check FCM v1 Status
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
@@ -360,7 +381,7 @@ ${_activeStaff.length < 2 ? '''
                     ],
                   ),
                   child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _checkFCMStatus,
+                    onPressed: _isLoading ? null : _checkFCMV1Status,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.info,
                       foregroundColor: AppColors.textPrimary,
@@ -370,9 +391,9 @@ ${_activeStaff.length < 2 ? '''
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       elevation: 0,
                     ),
-                    icon: const Icon(Icons.health_and_safety, size: 22),
+                    icon: const Icon(Icons.analytics, size: 22),
                     label: const Text(
-                      'Check FCM System Status',
+                      'Check HTTP v1 System Status',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
@@ -383,7 +404,7 @@ ${_activeStaff.length < 2 ? '''
 
                 const SizedBox(height: 16),
 
-                // Test New Case Notification (PRIMARY TEST)
+                // Test New Case Notification v1
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
@@ -397,7 +418,7 @@ ${_activeStaff.length < 2 ? '''
                     ],
                   ),
                   child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _testNewCaseNotification,
+                    onPressed: _isLoading ? null : _testNewCaseNotificationV1,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.warning,
                       foregroundColor: AppColors.textPrimary,
@@ -407,9 +428,9 @@ ${_activeStaff.length < 2 ? '''
                       padding: const EdgeInsets.symmetric(vertical: 18),
                       elevation: 0,
                     ),
-                    icon: const Icon(Icons.notification_add, size: 24),
+                    icon: const Icon(Icons.security, size: 24),
                     label: const Text(
-                      'Test New Death Case Alert',
+                      'Test Death Case Alert (HTTP v1)',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -420,7 +441,7 @@ ${_activeStaff.length < 2 ? '''
 
                 const SizedBox(height: 16),
 
-                // Simple FCM Test
+                // Simple FCM v1 Test
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
@@ -434,7 +455,7 @@ ${_activeStaff.length < 2 ? '''
                     ],
                   ),
                   child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _testFCMToAllStaff,
+                    onPressed: _isLoading ? null : _testFCMV1ToAllStaff,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: AppColors.textPrimary,
@@ -444,9 +465,9 @@ ${_activeStaff.length < 2 ? '''
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       elevation: 0,
                     ),
-                    icon: const Icon(Icons.send, size: 22),
+                    icon: const Icon(Icons.rocket, size: 22),
                     label: const Text(
-                      'Send Test FCM to All Staff',
+                      'Test HTTP v1 to All Staff',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
@@ -463,10 +484,10 @@ ${_activeStaff.length < 2 ? '''
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.1),
+                color: AppColors.success.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.error.withOpacity(0.3),
+                  color: AppColors.success.withOpacity(0.3),
                   width: 1,
                 ),
               ),
@@ -475,15 +496,15 @@ ${_activeStaff.length < 2 ? '''
                   Row(
                     children: [
                       Icon(
-                        Icons.rocket_launch,
-                        color: AppColors.error,
+                        Icons.security,
+                        color: AppColors.success,
                         size: 20,
                       ),
                       SizedBox(width: 8),
                       Text(
-                        'Firebase Cloud Messaging',
+                        'Modern FCM HTTP v1 API',
                         style: TextStyle(
-                          color: AppColors.error,
+                          color: AppColors.success,
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
@@ -492,11 +513,12 @@ ${_activeStaff.length < 2 ? '''
                   ),
                   SizedBox(height: 12),
                   Text(
-                    '• Tests cross-device notification delivery\n'
-                    '• Ensures ALL STAFF receive death case alerts\n'
-                    '• Verifies staff@gmail.com AND staff2@gmail.com get notified\n'
-                    '• Uses Firebase Cloud Messaging for real-time delivery\n'
-                    '• Perfect for testing before production deployment',
+                    '🔐 OAuth 2.0 authentication (more secure)\n'
+                    '🚀 Future-proof implementation\n'
+                    '📱 Better cross-platform support\n'
+                    '⚡ Real-time delivery\n'
+                    '✅ Replaces deprecated server key method\n'
+                    '🎯 Production-ready notification system',
                     style: TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,

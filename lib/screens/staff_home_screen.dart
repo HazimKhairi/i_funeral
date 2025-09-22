@@ -363,15 +363,15 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> with SingleTickerProv
             ),
             child: Stack(
               children: [
-                IconButton(
-                  onPressed: _showFCMTestDialog,
-                  icon: const Icon(
-                    Icons.cloud_sync,
-                    color: AppColors.error,
-                    size: 20,
-                  ),
-                  tooltip: 'Test FCM - All Staff Notifications',
-                ),
+                // IconButton(
+                //   onPressed: _showFCMTestDialog,
+                //   icon: const Icon(
+                //     Icons.cloud_sync,
+                //     color: AppColors.error,
+                //     size: 20,
+                //   ),
+                //   tooltip: 'Test FCM - All Staff Notifications',
+                // ),
                 // FCM indicator badge
                 Positioned(
                   right: 6,

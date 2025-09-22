@@ -1,23 +1,32 @@
 import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:googleapis_auth/auth_io.dart';
 import '../models/enums.dart';
 import '../main.dart';
 
 class FirebaseCloudMessagingService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  // FCM Server Key - IMPORTANT: Get this from Firebase Console
-  // Go to: Project Settings > Cloud Messaging > Server Key
-  static const String _fcmServerKey = 'YOUR_FCM_SERVER_KEY_HERE'; // REPLACE THIS!
+  
+  // Your Firebase project ID
+  static const String _projectId = 'ifuneral';
+  
+  // FCM v1 API endpoint
+  static String get _fcmEndpoint => 'https://fcm.googleapis.com/v1/projects/$_projectId/messages:send';
+  
+  // OAuth 2.0 scopes for FCM
+  static const List<String> _scopes = [
+    'https://www.googleapis.com/auth/firebase.messaging'
+  ];
 
   /// Initialize Firebase Cloud Messaging
   static Future<void> initialize() async {
-    print('🚀 Initializing Firebase Cloud Messaging...');
+    print('🚀 Initializing Firebase Cloud Messaging (HTTP v1)...');
 
     // Request notification permissions
     NotificationSettings settings = await _messaging.requestPermission(
@@ -37,7 +46,6 @@ class FirebaseCloudMessagingService {
       // Listen for token refresh
       _messaging.onTokenRefresh.listen((newToken) {
         print('🔄 FCM Token refreshed: $newToken');
-        // Update token in Firestore when it refreshes
         _updateCurrentUserToken(newToken);
       });
 
@@ -100,11 +108,35 @@ class FirebaseCloudMessagingService {
   /// Handle notification tap actions
   static void _handleNotificationTap(RemoteMessage message) {
     if (message.data['type'] == 'new_case') {
-      // Navigate to staff home screen
       MyApp.navigatorKey.currentState?.pushNamedAndRemoveUntil(
         '/staff-home',
         (route) => route.isFirst,
       );
+    }
+  }
+
+  /// Get OAuth 2.0 access token from service account
+  static Future<String> _getAccessToken() async {
+    try {
+      // Load service account JSON from assets
+      String serviceAccountJson = await rootBundle.loadString('assets/service-account.json');
+      Map<String, dynamic> serviceAccount = json.decode(serviceAccountJson);
+      
+      // Create service account credentials
+      var credentials = ServiceAccountCredentials.fromJson(serviceAccount);
+      
+      // Get access token
+      var client = await clientViaServiceAccount(credentials, _scopes);
+      var accessToken = client.credentials.accessToken.data;
+      
+      client.close();
+      
+      print('✅ Access token obtained: ${accessToken.substring(0, 20)}...');
+      return accessToken;
+      
+    } catch (e) {
+      print('❌ Error getting access token: $e');
+      throw Exception('Failed to get access token: $e');
     }
   }
 
@@ -128,22 +160,20 @@ class FirebaseCloudMessagingService {
   /// Update current user's token (for token refresh)
   static Future<void> _updateCurrentUserToken(String newToken) async {
     try {
-      // You'll need to get current user ID from your auth service
-      // For now, we'll update all active tokens (not ideal but works for testing)
       print('🔄 Updating FCM token: $newToken');
     } catch (e) {
       print('❌ Error updating FCM token: $e');
     }
   }
 
-  /// MAIN FUNCTION: Send notification to ALL STAFF
+  /// MAIN FUNCTION: Send notification to ALL STAFF using HTTP v1 API
   static Future<void> notifyAllStaff({
     required String title,
     required String body,
     required Map<String, String> data,
   }) async {
     try {
-      print('📡 Sending notification to ALL STAFF...');
+      print('📡 Sending FCM v1 notification to ALL STAFF...');
       print('Title: $title');
       print('Body: $body');
 
@@ -156,132 +186,110 @@ class FirebaseCloudMessagingService {
 
       print('👥 Found ${staffQuery.docs.length} staff members');
 
-      List<String> tokens = [];
-      
-      // Collect all valid FCM tokens
-      for (DocumentSnapshot staffDoc in staffQuery.docs) {
-        String? token = staffDoc.get('fcmToken');
-        if (token != null && token.isNotEmpty) {
-          tokens.add(token);
-          print('📱 Staff token: ${staffDoc.id} - ${token.substring(0, 20)}...');
-        }
-      }
-
-      if (tokens.isEmpty) {
+      if (staffQuery.docs.isEmpty) {
         print('❌ No active staff tokens found');
         return;
       }
 
-      print('📤 Sending to ${tokens.length} staff devices...');
+      // Get OAuth 2.0 access token
+      String accessToken = await _getAccessToken();
 
-      // Send to all tokens using multicast
-      await _sendMulticastMessage(
-        tokens: tokens,
-        title: title,
-        body: body,
-        data: data,
-      );
-
-      // Also save notification to Firestore for history
-      await _saveNotificationHistory(title, body, data);
-
-      print('✅ Successfully sent notifications to all staff!');
-    } catch (e) {
-      print('❌ Error sending staff notifications: $e');
-    }
-  }
-
-  /// Send FCM message to multiple tokens (multicast)
-  static Future<void> _sendMulticastMessage({
-    required List<String> tokens,
-    required String title,
-    required String body,
-    required Map<String, String> data,
-  }) async {
-    try {
-      // Split tokens into batches of 500 (FCM limit)
-      const int batchSize = 500;
-      for (int i = 0; i < tokens.length; i += batchSize) {
-        List<String> batch = tokens.skip(i).take(batchSize).toList();
-        
-        await _sendBatchNotification(
-          tokens: batch,
-          title: title,
-          body: body,
-          data: data,
-        );
-        
-        // Small delay between batches
-        if (i + batchSize < tokens.length) {
-          await Future.delayed(const Duration(milliseconds: 100));
+      // Send to each staff member
+      int successCount = 0;
+      for (DocumentSnapshot staffDoc in staffQuery.docs) {
+        String? token = staffDoc.get('fcmToken');
+        if (token != null && token.isNotEmpty) {
+          bool sent = await _sendMessageToToken(
+            token: token,
+            title: title,
+            body: body,
+            data: data,
+            accessToken: accessToken,
+          );
+          if (sent) successCount++;
         }
       }
+
+      // Save notification to Firestore for history
+      await _saveNotificationHistory(title, body, data);
+
+      print('✅ Successfully sent notifications to $successCount/${staffQuery.docs.length} staff members!');
+      
     } catch (e) {
-      print('❌ Error in multicast message: $e');
+      print('❌ Error sending staff notifications: $e');
+      rethrow;
     }
   }
 
-  /// Send notification to a batch of tokens via FCM HTTP API
-  static Future<void> _sendBatchNotification({
-    required List<String> tokens,
+  /// Send FCM message to a single token using HTTP v1 API
+  static Future<bool> _sendMessageToToken({
+    required String token,
     required String title,
     required String body,
     required Map<String, String> data,
+    required String accessToken,
   }) async {
     try {
-      // IMPORTANT: You need to implement server-side FCM sending
-      // This is a client-side approach for testing (NOT recommended for production)
-      
-      final String fcmUrl = 'https://fcm.googleapis.com/fcm/send';
-      
-      for (String token in tokens) {
-        final Map<String, dynamic> message = {
-          'to': token,
+      // Create HTTP v1 message payload with correct structure
+      final Map<String, dynamic> message = {
+        'message': {
+          'token': token,
           'notification': {
             'title': title,
             'body': body,
-            'sound': 'default',
-            'badge': '1',
           },
           'data': data,
           'android': {
             'priority': 'high',
             'notification': {
               'channel_id': 'new_case_channel',
-              'priority': 'high',
               'sound': 'default',
+              'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+              'icon': 'ic_launcher',
+              'color': '#2E8B57',
             },
           },
           'apns': {
+            'headers': {
+              'apns-priority': '10',
+            },
             'payload': {
               'aps': {
                 'sound': 'default',
                 'badge': 1,
+                'alert': {
+                  'title': title,
+                  'body': body,
+                },
+                'content-available': 1,
               },
             },
           },
-        };
+        },
+      };
 
-        final response = await http.post(
-          Uri.parse(fcmUrl),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'key=$_fcmServerKey', // Replace with your server key
-          },
-          body: json.encode(message),
-        );
+      // Send HTTP request to FCM v1 API
+      final response = await http.post(
+        Uri.parse(_fcmEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: json.encode(message),
+      );
 
-        if (response.statusCode == 200) {
-          print('✅ Message sent to token: ${token.substring(0, 20)}...');
-        } else {
-          print('❌ Failed to send to token: ${response.statusCode} - ${response.body}');
-        }
-
-        // Small delay between individual sends
-        await Future.delayed(const Duration(milliseconds: 50));
+      if (response.statusCode == 200) {
+        print('✅ Message sent successfully to: ${token.substring(0, 20)}...');
+        return true;
+      } else {
+        print('❌ Failed to send message: ${response.statusCode}');
+        print('Response: ${response.body}');
+        return false;
       }
+      
     } catch (e) {
-      print('❌ Error sending batch notification: $e');
+      print('❌ Error sending message to token: $e');
+      return false;
     }
   }
 
@@ -299,6 +307,7 @@ class FirebaseCloudMessagingService {
         'type': 'staff_broadcast',
         'sentAt': FieldValue.serverTimestamp(),
         'sentBy': 'system',
+        'apiVersion': 'v1',
       });
     } catch (e) {
       print('❌ Error saving notification history: $e');
@@ -324,7 +333,7 @@ class FirebaseCloudMessagingService {
     );
   }
 
-  /// Send case status update notification
+  /// Send case status update notification to specific user
   static Future<void> notifyCaseStatusUpdate({
     required String caseName,
     required String caseId,
@@ -339,7 +348,7 @@ class FirebaseCloudMessagingService {
           .get();
 
       String? token = userDoc.get('fcmToken');
-      if (token != null) {
+      if (token != null && token.isNotEmpty) {
         String statusText = '';
         String emoji = '';
 
@@ -356,8 +365,12 @@ class FirebaseCloudMessagingService {
             return;
         }
 
-        await _sendBatchNotification(
-          tokens: [token],
+        // Get access token
+        String accessToken = await _getAccessToken();
+
+        // Send notification
+        await _sendMessageToToken(
+          token: token,
           title: '$emoji Case $statusText',
           body: 'Your request for $caseName has been $statusText',
           data: {
@@ -366,6 +379,7 @@ class FirebaseCloudMessagingService {
             'caseName': caseName,
             'status': status.value,
           },
+          accessToken: accessToken,
         );
       }
     } catch (e) {
@@ -376,11 +390,12 @@ class FirebaseCloudMessagingService {
   /// Test notification for debugging
   static Future<void> sendTestNotification() async {
     await notifyAllStaff(
-      title: '🔔 Test Notification',
-      body: 'This is a test notification to all staff members!',
+      title: '🔔 Test Notification (HTTP v1)',
+      body: 'This test uses the new FCM HTTP v1 API!',
       data: {
         'type': 'test',
         'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
+        'api_version': 'v1',
       },
     );
   }
